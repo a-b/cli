@@ -12,9 +12,10 @@ RUN if [ "${INSTALL_NODE}" = "true" ]; then su vscode -c "source /usr/local/shar
 #     && apt-get -y install --no-install-recommends <your-package-list-here>
 
 # [Optional] Uncomment the next line to use go get to install anything else you need
-RUN go get -x github.com/cloudfoundry/cli
-RUN go get -x github.com/onsi/ginkgo/ginkgo
-RUN go get -x github.com/onsi/gomega/...
+RUN go get -x github.com/cloudfoundry/cli &&
+    go get -x github.com/onsi/ginkgo/ginkgo &&
+    go get -x github.com/onsi/gomega/... &&
+    go get -x code.cloudfoundry.org/gofileutils/fileutils
 
 
 # [Optional] Uncomment this line to install global node packages.
