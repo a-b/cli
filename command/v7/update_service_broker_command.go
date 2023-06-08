@@ -1,6 +1,7 @@
 package v7
 
 import (
+	"code.cloudfoundry.org/cli/command"
 	"code.cloudfoundry.org/cli/command/flag"
 	"code.cloudfoundry.org/cli/resources"
 )
@@ -8,9 +9,10 @@ import (
 type UpdateServiceBrokerCommand struct {
 	BaseCommand
 
-	RequiredArgs    flag.ServiceBrokerArgs `positional-args:"yes"`
-	usage           interface{}            `usage:"CF_NAME update-service-broker SERVICE_BROKER USERNAME PASSWORD URL"`
-	relatedCommands interface{}            `related_commands:"rename-service-broker, service-brokers"`
+	PositionalArgs  flag.ServiceBrokerArgs `positional-args:"yes"`
+	usage           any                    `usage:"CF_NAME update-service-broker SERVICE_BROKER USERNAME PASSWORD URL\n   CF_NAME update-service-broker SERVICE_BROKER USERNAME URL (omit password to specify interactively or via environment variable)\n\nWARNING:\n   Providing your password as a command line option is highly discouraged\n   Your password may be visible to others and may be recorded in your shell history"`
+	relatedCommands any                    `related_commands:"rename-service-broker, service-brokers"`
+	envPassword     any                    `environmentName:"CF_BROKER_PASSWORD" environmentDescription:"Password associated with user. Overridden if PASSWORD argument is provided" environmentDefault:"password"`
 }
 
 func (cmd UpdateServiceBrokerCommand) Execute(args []string) error {
@@ -18,7 +20,12 @@ func (cmd UpdateServiceBrokerCommand) Execute(args []string) error {
 		return err
 	}
 
-	serviceBroker, warnings, err := cmd.Actor.GetServiceBrokerByName(cmd.RequiredArgs.ServiceBroker)
+	brokerName, username, password, url, err := promptUserForBrokerPasswordIfRequired(cmd.PositionalArgs, cmd.UI)
+	if err != nil {
+		return err
+	}
+
+	serviceBroker, warnings, err := cmd.Actor.GetServiceBrokerByName(brokerName)
 	cmd.UI.DisplayWarnings(warnings)
 	if err != nil {
 		return err
@@ -29,28 +36,32 @@ func (cmd UpdateServiceBrokerCommand) Execute(args []string) error {
 		return err
 	}
 
-	cmd.UI.DisplayTextWithFlavor(
+	return updateServiceBroker(cmd.UI, cmd.Actor, user.Name, serviceBroker.GUID, brokerName, username, password, url)
+}
+
+func updateServiceBroker(ui command.UI, actor Actor, user, brokerGUID, brokerName, username, password, url string) error {
+	ui.DisplayTextWithFlavor(
 		"Updating service broker {{.ServiceBroker}} as {{.Username}}...",
-		map[string]interface{}{
-			"Username":      user.Name,
-			"ServiceBroker": cmd.RequiredArgs.ServiceBroker,
+		map[string]any{
+			"Username":      user,
+			"ServiceBroker": brokerName,
 		},
 	)
 
-	warnings, err = cmd.Actor.UpdateServiceBroker(
-		serviceBroker.GUID,
+	warnings, err := actor.UpdateServiceBroker(
+		brokerGUID,
 		resources.ServiceBroker{
-			Username: cmd.RequiredArgs.Username,
-			Password: cmd.RequiredArgs.Password,
-			URL:      cmd.RequiredArgs.URL,
+			Username: username,
+			Password: password,
+			URL:      url,
 		},
 	)
-	cmd.UI.DisplayWarnings(warnings)
+	ui.DisplayWarnings(warnings)
 	if err != nil {
 		return err
 	}
 
-	cmd.UI.DisplayOK()
+	ui.DisplayOK()
 
 	return nil
 }
