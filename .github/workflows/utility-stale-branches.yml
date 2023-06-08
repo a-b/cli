@@ -1,4 +1,4 @@
-name: Utility Stale Branches
+name: "Utility: Stale Branches"
 
 on:
   workflow_dispatch:
