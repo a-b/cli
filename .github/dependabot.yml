@@ -1,7 +1,7 @@
 version: 2
 updates:
 - package-ecosystem: gomod
-  directory: "/"
+  directory: '/'
   schedule:
     interval: weekly
     day:      monday
@@ -9,14 +9,14 @@ updates:
     timezone: US/Pacific
   open-pull-requests-limit: 2
   commit-message:
-    prefix: '(go deps)[main]'
+    prefix: '[main](go)'
   groups:
     dependencies:
       patterns:
         - '*'
 - package-ecosystem: gomod
-  directory: "/"
-  target-branch: "v8"
+  directory: '/'
+  target-branch: 'v8'
   schedule:
     interval: weekly
     day:      monday
@@ -24,14 +24,14 @@ updates:
     timezone: US/Pacific
   open-pull-requests-limit: 2
   commit-message:
-    prefix: '(go deps)[v8]'
+    prefix: '[v8](go)'
   groups:
     dependencies:
       patterns:
         - '*'
 - package-ecosystem: gomod
-  directory: "/"
-  target-branch: "v7"
+  directory: '/'
+  target-branch: 'v7'
   schedule:
     interval: weekly
     day:      monday
@@ -39,13 +39,13 @@ updates:
     timezone: US/Pacific
   open-pull-requests-limit: 2
   commit-message:
-    prefix: '(go deps)[v7]'
+    prefix: '[v7](go)'
   groups:
     dependencies:
       patterns:
         - '*'
-- package-ecosystem: "github-actions"
-  directory: "/"
+- package-ecosystem: 'github-actions'
+  directory: '/'
   schedule:
     interval: weekly
     day:      monday
@@ -53,14 +53,14 @@ updates:
     timezone: US/Pacific
   open-pull-requests-limit: 2
   commit-message:
-    prefix: '(gha deps)[main]'
+    prefix: '[main](gha)'
   groups:
     dependencies:
       patterns:
         - '*'
-- package-ecosystem: "github-actions"
-  directory: "/"
-  target-branch: "v8"
+- package-ecosystem: 'github-actions'
+  directory: '/'
+  target-branch: 'v8'
   schedule:
     interval: weekly
     day:      monday
@@ -68,14 +68,14 @@ updates:
     timezone: US/Pacific
   open-pull-requests-limit: 2
   commit-message:
-    prefix: '(gha deps)[v8]'
+    prefix: '[v8](gha)'
   groups:
     dependencies:
       patterns:
         - '*'
-- package-ecosystem: "github-actions"
-  directory: "/"
-  target-branch: "v7"
+- package-ecosystem: 'github-actions'
+  directory: '/'
+  target-branch: 'v7'
   schedule:
     interval: weekly
     day:      monday
@@ -83,7 +83,7 @@ updates:
     timezone: US/Pacific
   open-pull-requests-limit: 2
   commit-message:
-    prefix: '(gha deps)[v7]'
+    prefix: '[v7](gha)'
   groups:
     dependencies:
       patterns:
