@@ -97,18 +97,25 @@ jobs:
         shepherd login service-account ${account_token}
         shepherd get lease ${{ inputs.lease-id }} --namespace tas-devex --json | jq .output > metadata.json
 
+    - name: Store env metadata
+      uses: actions/upload-artifact@v4
+      with:
+        if-no-files-found: error
+        name: env-metadata
+        path: metadata.json
+
     - name: Setup environment
       id: setup_env
       run: |
         set -eu
         
-        echo "ENV=$(jq -r .name metadata.json)" >> $GITHUB_OUTPUT
+        echo "ENV=$(jq -r .name       metadata.json)" >> $GITHUB_OUTPUT
         echo "API=$(jq -r .cf.api_url metadata.json)" >> $GITHUB_OUTPUT
         echo "DOMAIN=$(echo $API | sed 's/^api\.//')" >> $GITHUB_OUTPUT
 
         jq -r .bosh.jumpbox_private_key metadata.json > /tmp/${ENV}.priv
 
-        bosh_env_variables=$(bbl print-env --metadata-file ./metadata.json)
+        bosh_env_variables=$(bbl print-env --metadata-file metadata.json)
         echo "$bosh_env_variables" >> $GITHUB_OUTPUT
         eval "$bosh_env_variables"
 
