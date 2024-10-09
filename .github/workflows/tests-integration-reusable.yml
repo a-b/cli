@@ -97,23 +97,59 @@ jobs:
         shepherd login service-account ${account_token}
         shepherd get lease ${{ inputs.lease-id }} --namespace tas-devex --json | jq .output > metadata.json
 
-    - name: Add CATS config
-      if: ${{ inputs.name == 'cats' }}
+    - name: Setup environment
+      id: setup_env
       run: |
         set -eu
         
-        ENV=$(jq -r .name metadata.json)
-        API="$(jq -r .cf.api_url metadata.json)"
-        DOMAIN=$(echo $API | sed "s/^api\.//")
-        CF_INT_USERNAME="admin"
+        echo "ENV=$(jq -r .name metadata.json)" >> $GITHUB_OUTPUT
+        echo "API=$(jq -r .cf.api_url metadata.json)" >> $GITHUB_OUTPUT
+        echo "DOMAIN=$(echo $API | sed 's/^api\.//')" >> $GITHUB_OUTPUT
 
         jq -r .bosh.jumpbox_private_key metadata.json > /tmp/${ENV}.priv
-        eval "$(bbl print-env --metadata-file ./metadata.json)"
+
+        bosh_env_variables=$(bbl print-env --metadata-file ./metadata.json)
+        echo "$bosh_env_variables" >> $GITHUB_OUTPUT
+        eval "$bosh_env_variables"
 
         credhub login
-        CF_INT_PASSWORD=$(credhub get -n /bosh-$ENV/cf/cf_admin_password | bosh interpolate --path /value -)
 
-        cat << EOF | jq -S . > cats_config.json
+        echo "CF_INT_USERNAME=admin" >> $GITHUB_OUTPUT
+        echo "CF_INT_PASSWORD=$(credhub get -n /bosh-lite/cf/cf_admin_password | bosh interpolate --path /value -)" >> $GITHUB_OUTPUT
+
+        echo "CF_USERNAME=${CF_INT_USERNAME}" >> $GITHUB_OUTPUT
+        echo "CF_PASSWORD=${CF_INT_PASSWORD}" >> $GITHUB_OUTPUT
+
+        echo "CF_INT_OIDC_USERNAME=admin-oidc" >> $GITHUB_OUTPUT
+        echo "CF_INT_OIDC_PASSWORD=$(credhub get -n /bosh-lite/cf/uaa_oidc_admin_password | bosh interpolate --path /value -)" >> $GITHUB_OUTPUT
+
+        echo "API_URL=$(jq -r .cf.api_url metadata.json)" >> $GITHUB_OUTPUT
+        echo "CF_INT_API=https://$API_URL" >> $GITHUB_OUTPUT
+
+        "CF_DIAL_TIMEOUT=15"
+        echo "FLAKE_ATTEMPTS=2"
+        echo "NODES=16"
+        echo "GOPATH=$PWD/go"
+        echo "PATH="$PWD/out:$GOPATH/bin:$PATH""
+        echo "$PWD/out" >> $GITHUB_PATH
+
+        echo "CF_PLUGIN_HOME=$HOME" >> $GITHUB_PATH
+
+        go version
+
+        make build
+        cf version
+
+        cf api ${API} --skip-ssl-validation
+
+    - name: Run CATS Tests
+      if: ${{ inputs.name == 'cats' }}
+      run: |
+        set -xeu
+
+        export CONFIG=$(mktemp)
+
+        cat << EOF | jq -S . > ${CONFIG}
         {
           "admin_password": "${CF_INT_PASSWORD}",
           "admin_user": "${CF_INT_USERNAME}",
@@ -152,34 +188,12 @@ jobs:
         }
         EOF
 
-        make build
-        echo "$PWD/out" >> $GITHUB_PATH
-        export PATH="$PWD/out:$PATH"
-        cf version
-
-        export CF_USERNAME=${CF_INT_USERNAME}
-        export CF_PASSWORD=${CF_INT_PASSWORD}
-        cf api ${API} --skip-ssl-validation
         cf auth
         cf enable-feature-flag diego_docker
         cf enable-feature-flag diego_cnb
         cf enable-feature-flag service_instance_sharing
 
-    - name: Run CATS Tests
-      if: ${{ inputs.name == 'cats' }}
-      run: |
-        set -xeu
-
-        export CONFIG
-        CONFIG=$(mktemp)
-
-        original_config="${PWD}/cats_config.json"
-        cp ${original_config} ${CONFIG}
-
         cd ./cf-acceptance-tests
-        export CF_DIAL_TIMEOUT=11
-        export CF_PLUGIN_HOME=$HOME
-        go version
 
         ./bin/test \
           --keep-going \
@@ -192,27 +206,9 @@ jobs:
 
     - name: Run Integration Tests
       if: ${{ !inputs.run-with-client-creds  &&  inputs.name != 'cats' }}
+      env:
+        CF_INT_TEST_NAME: 'int'
       run: |
-        ENV=$(cat metadata.json | jq -r '.name')
-        jq -r .bosh.jumpbox_private_key metadata.json > /tmp/${ENV}.priv
-        eval "$(bbl print-env --metadata-file ./metadata.json)"
-        export CF_INT_PASSWORD="$(credhub get -n /bosh-$ENV/cf/cf_admin_password | bosh interpolate --path /value -)"
-        export CF_INT_OIDC_USERNAME="admin-oidc"
-        export CF_INT_OIDC_PASSWORD=$(credhub get -n /bosh-$ENV/cf/uaa_oidc_admin_password | bosh interpolate --path /value -)
-        API_URL="$(jq -r .cf.api_url metadata.json)"
-        export CF_INT_API="https://$API_URL"
-        export CF_DIAL_TIMEOUT=15
-        export CF_USERNAME=admin
-        export FLAKE_ATTEMPTS=2
-        export NODES=16
-        export GOPATH=$PWD/go
-        export PATH="$GOPATH/bin:$PATH"
-        export PATH="$PWD/out:$PATH"
-        export CF_INT_TEST_NAME="int"
-
-        make build
-
-        export CF_PASSWORD=${CF_INT_PASSWORD}
         cf api ${CF_INT_API} --skip-ssl-validation
         cf auth
 
@@ -221,29 +217,10 @@ jobs:
     - name: Run Integration Tests with client credentials
       if: ${{ inputs.run-with-client-creds }}
       env:
-        CF_INT_CLIENT_ID: 'potato-face'
+        CF_INT_CLIENT_ID:     'potato-face'
         CF_INT_CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+        CF_INT_TEST_NAME:     'cc'
       run: |
-        ENV=$(cat metadata.json | jq -r '.name')
-        jq -r .bosh.jumpbox_private_key metadata.json > /tmp/${ENV}.priv
-        eval "$(bbl print-env --metadata-file ./metadata.json)"
-        export CF_INT_PASSWORD="$(credhub get -n /bosh-$ENV/cf/cf_admin_password | bosh interpolate --path /value -)"
-        export CF_INT_OIDC_USERNAME="admin-oidc"
-        export CF_INT_OIDC_PASSWORD=$(credhub get -n /bosh-$ENV/cf/uaa_oidc_admin_password | bosh interpolate --path /value -)
-        API_URL="$(jq -r .cf.api_url metadata.json)"
-        export CF_INT_API="https://$API_URL"
-        export CF_DIAL_TIMEOUT=15
-        export CF_USERNAME=admin
-        export FLAKE_ATTEMPTS=2
-        export NODES=16
-        export GOPATH=$PWD/go
-        export PATH="$GOPATH/bin:$PATH"
-        export PATH="$PWD/out:$PATH"
-        export CF_INT_TEST_NAME="cc"
-
-        make build
-
-        export CF_PASSWORD=${CF_INT_PASSWORD}
         cf api ${CF_INT_API} --skip-ssl-validation
         cf auth
 
