@@ -110,7 +110,8 @@ jobs:
         set -eu
         
         echo "ENV=$(jq -r .name       metadata.json)" >> $GITHUB_OUTPUT
-        echo "API=$(jq -r .cf.api_url metadata.json)" >> $GITHUB_OUTPUT
+        export API=$(jq -r .cf.api_url metadata.json)
+        echo "API=$API" >> $GITHUB_OUTPUT
         echo "DOMAIN=$(echo $API | sed 's/^api\.//')" >> $GITHUB_OUTPUT
 
         jq -r .bosh.jumpbox_private_key metadata.json > /tmp/${ENV}.priv
@@ -130,8 +131,8 @@ jobs:
         echo "CF_INT_OIDC_USERNAME=admin-oidc" >> $GITHUB_OUTPUT
         echo "CF_INT_OIDC_PASSWORD=$(credhub get -n /bosh-lite/cf/uaa_oidc_admin_password | bosh interpolate --path /value -)" >> $GITHUB_OUTPUT
 
-        echo "API_URL=$(jq -r .cf.api_url metadata.json)" >> $GITHUB_OUTPUT
-        echo "CF_INT_API=https://$API_URL" >> $GITHUB_OUTPUT
+        echo "API_URL=$API" >> $GITHUB_OUTPUT
+        echo "CF_INT_API=https://$API" >> $GITHUB_OUTPUT
 
         "CF_DIAL_TIMEOUT=15"
         echo "FLAKE_ATTEMPTS=2"
