@@ -109,8 +109,10 @@ jobs:
       run: |
         set -eu
         
-        echo "ENV=$(jq -r .name       metadata.json)" >> $GITHUB_OUTPUT
+        export ENV=$(jq -r .name       metadata.json)
         export API=$(jq -r .cf.api_url metadata.json)
+
+        echo "ENV=$ENV" >> $GITHUB_OUTPUT
         echo "API=$API" >> $GITHUB_OUTPUT
         echo "DOMAIN=$(echo $API | sed 's/^api\.//')" >> $GITHUB_OUTPUT
 
