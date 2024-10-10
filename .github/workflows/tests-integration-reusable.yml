@@ -122,8 +122,6 @@ jobs:
         echo "$bosh_env_variables" >> $GITHUB_OUTPUT
         eval "$bosh_env_variables"
 
-        credhub login
-
         echo "CF_INT_USERNAME=admin" >> $GITHUB_OUTPUT
         echo "CF_INT_PASSWORD=$(credhub get -n /bosh-lite/cf/cf_admin_password | bosh interpolate --path /value -)" >> $GITHUB_OUTPUT
 
