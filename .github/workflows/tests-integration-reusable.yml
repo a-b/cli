@@ -34,6 +34,14 @@ jobs:
     runs-on: ${{ inputs.os }} 
     container: us-west2-docker.pkg.dev/shepherd-268822/shepherd2/concourse-resource:latest
     steps:
+
+
+    # TODO: revert
+    - name: DEBUG
+      run: |
+        apt install nodejs --yes
+
+
     - name: Checkout cli
       uses: actions/checkout@v4
       with:
@@ -62,6 +70,7 @@ jobs:
     - name: Install Tools
       env:
         account_token: ${{ secrets.SHEPHERD_SERVICE_ACCOUNT_TOKEN }}
+        namespace:     ${{ vars.POOL_NAMESPACE || 'tas-devex' }}
       run: |
         go version
 
@@ -95,7 +104,7 @@ jobs:
         apt-get install -y build-essential unzip
 
         shepherd login service-account ${account_token}
-        shepherd get lease ${{ inputs.lease-id }} --namespace tas-devex --json | jq .output > metadata.json
+        shepherd get lease ${{ inputs.lease-id }} --namespace ${namespace} --json | jq .output > metadata.json
 
     - name: Store env metadata
       uses: actions/upload-artifact@v4
@@ -109,51 +118,58 @@ jobs:
       run: |
         set -eu
         
-        export ENV=$(jq -r .name       metadata.json)
-        export API=$(jq -r .cf.api_url metadata.json)
+        # export ENV=$(jq -r .name       metadata.json)
+        # export API=$(jq -r .cf.api_url metadata.json)
 
-        echo "ENV=$ENV" >> $GITHUB_OUTPUT
-        echo "API=$API" >> $GITHUB_OUTPUT
-        echo "DOMAIN=$(echo $API | sed 's/^api\.//')" >> $GITHUB_OUTPUT
+        # echo "ENV=${ENV}" >> $GITHUB_ENV
+        # echo "API=${API}" >> $GITHUB_ENV
+        # echo "DOMAIN=$(echo $API | sed 's/^api\.//')" >> $GITHUB_ENV
+        # echo "API_URL=${API}" >> $GITHUB_ENV
+        # echo "CF_INT_API=https://${API}" >> $GITHUB_ENV
 
-        jq -r .bosh.jumpbox_private_key metadata.json > /tmp/${ENV}.priv
+        # jq -r .bosh.jumpbox_private_key metadata.json > /tmp/${ENV}.priv
 
-        bosh_env_variables=$(bbl print-env --metadata-file metadata.json)
-        echo "$bosh_env_variables" >> $GITHUB_OUTPUT
-        eval "$bosh_env_variables"
+        # bosh_env_variables=$(bbl print-env --metadata-file metadata.json)
+        # echo "$bosh_env_variables" >> $GITHUB_ENV
+        # eval "$bosh_env_variables"
 
-        echo "CF_INT_USERNAME=admin" >> $GITHUB_OUTPUT
-        echo "CF_INT_PASSWORD=$(credhub get -n /bosh-lite/cf/cf_admin_password | bosh interpolate --path /value -)" >> $GITHUB_OUTPUT
+        export CF_INT_USERNAME=admin
+        # export CF_INT_PASSWORD="$(credhub get -n /bosh-lite/cf/cf_admin_password | bosh interpolate --path /value -)"
 
-        echo "CF_USERNAME=${CF_INT_USERNAME}" >> $GITHUB_OUTPUT
-        echo "CF_PASSWORD=${CF_INT_PASSWORD}" >> $GITHUB_OUTPUT
+        echo "CF_INT_USERNAME=${CF_INT_USERNAME}" >> $GITHUB_ENV
+        # echo "CF_INT_PASSWORD=${CF_INT_PASSWORD}" >> $GITHUB_ENV
+        # echo "CF_USERNAME=${CF_INT_USERNAME}" >> $GITHUB_ENV
+        # echo "CF_PASSWORD=${CF_INT_PASSWORD}" >> $GITHUB_ENV
 
-        echo "CF_INT_OIDC_USERNAME=admin-oidc" >> $GITHUB_OUTPUT
-        echo "CF_INT_OIDC_PASSWORD=$(credhub get -n /bosh-lite/cf/uaa_oidc_admin_password | bosh interpolate --path /value -)" >> $GITHUB_OUTPUT
+        # echo "CF_INT_OIDC_USERNAME=admin-oidc" >> $GITHUB_ENV
+        # echo "CF_INT_OIDC_PASSWORD=$(credhub get -n /bosh-lite/cf/uaa_oidc_admin_password | bosh interpolate --path /value -)" >> $GITHUB_ENV
 
-        echo "API_URL=$API" >> $GITHUB_OUTPUT
-        echo "CF_INT_API=https://$API" >> $GITHUB_OUTPUT
+        # echo "CF_DIAL_TIMEOUT=15" >> $GITHUB_ENV
+        # echo "FLAKE_ATTEMPTS=2" >> $GITHUB_ENV
+        # echo "NODES=16" >> $GITHUB_ENV
 
-        "CF_DIAL_TIMEOUT=15"
-        echo "FLAKE_ATTEMPTS=2"
-        echo "NODES=16"
-        echo "GOPATH=$PWD/go"
-        echo "PATH="$PWD/out:$GOPATH/bin:$PATH""
-        echo "$PWD/out" >> $GITHUB_PATH
+        # export GOPATH="$PWD/go"
+        # export PATH="$PWD/out:$GOPATH/bin:$PATH"
 
-        echo "CF_PLUGIN_HOME=$HOME" >> $GITHUB_PATH
+        # echo "GOPATH=$PWD/go" >> $GITHUB_ENV
+        # echo "PATH=$PWD/out:$GOPATH/bin:$PATH" >> $GITHUB_ENV
+        # echo "$PWD/out" >> $GITHUB_PATH
 
-        go version
+        # echo "CF_PLUGIN_HOME=$HOME" >> $GITHUB_PATH
 
-        make build
-        cf version
+        # go version
 
-        cf api ${API} --skip-ssl-validation
+        # make build
+        # cf version
+
+        # cf api ${API} --skip-ssl-validation
 
     - name: Run CATS Tests
       if: ${{ inputs.name == 'cats' }}
       run: |
         set -xeu
+
+        env
 
         export CONFIG=$(mktemp)
 
@@ -217,6 +233,10 @@ jobs:
       env:
         CF_INT_TEST_NAME: 'int'
       run: |
+
+        export GOPATH="$PWD/go"
+        export PATH="$PWD/out:$GOPATH/bin:$PATH"
+
         cf api ${CF_INT_API} --skip-ssl-validation
         cf auth
 
