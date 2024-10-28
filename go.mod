@@ -42,7 +42,7 @@ require (
 	golang.org/x/crypto v0.27.0
 	golang.org/x/net v0.29.0
 	golang.org/x/term v0.24.0
-	golang.org/x/text v0.18.0
+	golang.org/x/text v0.19.0
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/apimachinery v0.31.1
