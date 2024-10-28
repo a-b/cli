@@ -31,11 +31,11 @@ on:
         default: ${{github.event.workflow_run.head_sha}}
       nodes:
         type: string
-        default: "8"
+        default: "16"
 
 env:
   NODES: ${{ inputs.nodes }}
-  FLAKE_ATTEMPTS: ${{ vars.TEST_FLAKE_ATTEMPTS || '2' }}
+  FLAKE_ATTEMPTS: ${{ vars.TEST_FLAKE_ATTEMPTS || '4' }}
 
 jobs:
   run-integration-tests:
