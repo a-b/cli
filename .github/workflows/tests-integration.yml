@@ -145,8 +145,8 @@ jobs:
             if [ -z "$template_argument" ]; then
               export template_argument='{"gcp_region":    "us-west2",
                                          "vm_type":       "n1-standard-8",
-                                         "root_disk_gb":  "32",
-                                         "disk_pool_gb":  "150",
+                                         "root_disk_gb":  32,
+                                         "disk_pool_gb":  150,
                                          "cfd_version":   "",
                                          "additional_opsfiles_b64": ""}'
             fi
