@@ -130,20 +130,32 @@ jobs:
       - name: claim
         id: claim
         env:
-          account_token:    ${{ secrets.SHEPHERD_SERVICE_ACCOUNT_TOKEN }}
-          pool_name:        ${{ vars.SHEPHERD_POOL_NAME }}
-          pool_duration:    ${{ vars.SHEPHERD_POOL_DURATION  || '8h' }}
-          pool_namespace:   ${{ vars.SHEPHERD_POOL_NAMESPACE || 'official' }}
-          lease_namespace:  ${{ inputs.lease_namespace       || vars.SHEPHERD_LEASE_NAMESPACE || 'tas-devex' }}
+          account_token:       ${{ secrets.SHEPHERD_SERVICE_ACCOUNT_TOKEN }}
+          template_argument:   ${{ vars.SHEPHERD_TEMPLATE_ARGUMENT        }}
+          template_name:       ${{ vars.SHEPHERD_TEMPLATE_NAME       || 'cfd-bosh-lite@1.0' }}
+          template_namespace:  ${{ vars.SHEPHERD_TEMPLATE_NAMESPACE  || 'official'          }}
+          lease_duration:      ${{ vars.SHEPHERD_LEASE_DURATION      || '8h'                }}
+          lease_namespace:     ${{ inputs.lease_namespace  || vars.SHEPHERD_LEASE_NAMESPACE || 'tas-devex' }}
         run: |
           shepherd login service-account ${account_token}
 
           if [[ -z $SHEPHERD_LEASE_ID ]]; then
-            lease_id=$( shepherd create lease \
-                          --duration       ${pool_duration}   \
-                          --pool           ${pool_name}       \
-                          --pool-namespace ${pool_namespace}  \
-                          --namespace      ${lease_namespace} \
+
+            if [ -z "$template_argument" ]; then
+              export template_argument='{"gcp_region":    "us-west2",
+                                         "vm_type":       "n1-standard-8",
+                                         "root_disk_gb":  "32",
+                                         "disk_pool_gb":  "150",
+                                         "cfd_version":   "",
+                                         "additional_opsfiles_b64": ""}'
+            fi
+
+            lease_id=$( shepherd create lease                           \
+                          --template-argument  "$template_argument"     \
+                          --template-namespace "${template_namespace}"  \
+                          --template           "${template_name}"       \
+                          --namespace          "${lease_namespace}"     \
+                          --duration           "${lease_duration}"      \
                           --description "Claimed by CF CLI workflow ${{ github.workflow_run.url }}" \
                           --json \
                         | jq -r .id
