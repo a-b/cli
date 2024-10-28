@@ -287,7 +287,7 @@ jobs:
       name: Integration
       gitRef: ${{needs.get-sha.outputs.gitRef}}
       lease-id: ${{ needs.claim-env.outputs.leaseid }}
-      lease-namespace: ${{ inputs.lease_namespace }}
+      lease-namespace: ${{ inputs.lease_namespace  || vars.SHEPHERD_LEASE_NAMESPACE || 'tas-devex' }}
       nodes: ${{ inputs.nodes }}
     secrets: inherit
 
@@ -305,7 +305,7 @@ jobs:
       name: Integration client creds
       gitRef: ${{needs.get-sha.outputs.gitRef}}
       lease-id: ${{ needs.claim-env.outputs.leaseid }}
-      lease-namespace: ${{ inputs.lease_namespace }}
+      lease-namespace: ${{ inputs.lease_namespace  || vars.SHEPHERD_LEASE_NAMESPACE || 'tas-devex' }}
     secrets: inherit
 
   run-cats-cf-env:
@@ -323,7 +323,7 @@ jobs:
       name: cats
       gitRef: ${{needs.get-sha.outputs.gitRef}}
       lease-id: ${{ needs.claim-env.outputs.leaseid }}
-      lease-namespace: ${{ inputs.lease_namespace }}
+      lease-namespace: ${{ inputs.lease_namespace  || vars.SHEPHERD_LEASE_NAMESPACE || 'tas-devex' }}
     secrets: inherit
 
   unclaim-env:
@@ -344,4 +344,3 @@ jobs:
           set -x
           shepherd delete lease ${{ needs.claim-env.outputs.leaseid }} \
             --namespace ${lease_namespace}
-
