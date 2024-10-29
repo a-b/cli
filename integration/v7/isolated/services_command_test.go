@@ -141,74 +141,50 @@ var _ = Describe("services command", func() {
 		})
 	})
 
-	Context("has only services", func() {
-		const (
-			serviceInstanceWithNoMaintenanceInfo  = "s3"
-			serviceInstanceWithOldMaintenanceInfo = "s2"
-			serviceInstanceWithNewMaintenanceInfo = "s1"
-		)
-
+	Context("has shared service instances", func() {
 		var (
-			broker                    *servicebrokerstub.ServiceBrokerStub
-			orgName                   string
-			spaceName                 string
-			service                   string
-			planWithNoMaintenanceInfo string
-			planWithMaintenanceInfo   string
-			userProvidedService       string
+			managedService, appNameOnSpaceA, appNameOnSpaceB, orgName string
 		)
 
 		BeforeEach(func() {
 			orgName = helpers.NewOrgName()
-			spaceName = helpers.NewSpaceName()
-			helpers.SetupCF(orgName, spaceName)
+			spaceA := helpers.NewSpaceName()
+			spaceB := helpers.NewSpaceName()
+			managedService = helpers.PrefixedRandomName("MANAGED1")
+			appNameOnSpaceA = helpers.PrefixedRandomName("APP1")
+			appNameOnSpaceB = helpers.PrefixedRandomName("APP1")
 
-			broker = servicebrokerstub.New().WithPlans(2)
+			helpers.SetupCF(orgName, spaceA)
+			helpers.CreateOrgAndSpace(orgName, spaceB)
+			broker := servicebrokerstub.New().WithPlans(2).EnableServiceAccess()
+			helpers.CreateManagedServiceInstance(broker.FirstServiceOfferingName(), broker.FirstServicePlanName(), managedService)
 
-			service = broker.FirstServiceOfferingName()
-			planWithMaintenanceInfo = broker.Services[0].Plans[0].Name
-			broker.Services[0].Plans[0].MaintenanceInfo = &config.MaintenanceInfo{Version: "1.2.3"}
-			planWithNoMaintenanceInfo = broker.Services[0].Plans[1].Name
-			broker.Services[0].Plans[1].MaintenanceInfo = nil
+			helpers.WithHelloWorldApp(func(appDir string) {
+				Eventually(helpers.CF("push", appNameOnSpaceA, "--no-start", "-p", appDir, "-b", "staticfile_buildpack", "--no-route")).Should(Exit(0))
+			})
+			Eventually(helpers.CF("bind-service", appNameOnSpaceA, managedService)).Should(Exit(0))
+			Eventually(helpers.CF("share-service", managedService, "-s", spaceB)).Should(Exit(0))
 
-			broker.EnableServiceAccess()
-
-			Eventually(helpers.CF("create-service", service, planWithNoMaintenanceInfo, serviceInstanceWithNoMaintenanceInfo)).Should(Exit(0))
-			Eventually(helpers.CF("create-service", service, planWithMaintenanceInfo, serviceInstanceWithOldMaintenanceInfo)).Should(Exit(0))
-
-			broker.Services[0].Plans[0].MaintenanceInfo = &config.MaintenanceInfo{Version: "2.0.0"}
-
-			broker.Configure().Register()
-			Eventually(helpers.CF("create-service", service, planWithMaintenanceInfo, serviceInstanceWithNewMaintenanceInfo)).Should(Exit(0))
-
-			userProvidedService = helpers.PrefixedRandomName("UPS1")
-			Eventually(helpers.CF("cups", userProvidedService, "-p", `{"username": "admin", "password": "admin"}`)).Should(Exit(0))
+			helpers.TargetOrgAndSpace(orgName, spaceB)
+			helpers.WithHelloWorldApp(func(appDir string) {
+				Eventually(helpers.CF("push", appNameOnSpaceB, "--no-start", "-p", appDir, "-b", "staticfile_buildpack", "--no-route")).Should(Exit(0))
+			})
+			Eventually(helpers.CF("bind-service", appNameOnSpaceB, managedService)).Should(Exit(0))
+			helpers.TargetOrgAndSpace(orgName, spaceA)
 		})
 
 		AfterEach(func() {
-			Eventually(helpers.CF("delete-service", serviceInstanceWithNoMaintenanceInfo, "-f")).Should(Exit(0))
-			Eventually(helpers.CF("delete-service", serviceInstanceWithOldMaintenanceInfo, "-f")).Should(Exit(0))
-			Eventually(helpers.CF("delete-service", serviceInstanceWithNewMaintenanceInfo, "-f")).Should(Exit(0))
-
-			broker.Forget()
 			helpers.QuickDeleteOrg(orgName)
 		})
 
-		When("CAPI version supports maintenance_info in summary endpoint", func() {
-			BeforeEach(func() {
-				helpers.SkipIfVersionLessThan(ccversion.MinVersionMaintenanceInfoInSummaryV2)
-			})
-
-			It("displays all service information", func() {
-				session := helpers.CF("services")
-				Eventually(session).Should(Say("Getting services in org %s / space %s as %s...", orgName, spaceName, userName))
-				Eventually(session).Should(Say(`name\s+service\s+plan\s+bound apps\s+last operation\s+broker\s+upgrade available`))
-				Eventually(session).Should(Say(`%s\s+%s\s+%s\s+%s\s+%s\s+%s\s+%s`, serviceInstanceWithNewMaintenanceInfo, service, planWithMaintenanceInfo, "", "create succeeded", broker.Name, "no"))
-				Eventually(session).Should(Say(`%s\s+%s\s+%s\s+%s\s+%s\s+%s\s+%s`, serviceInstanceWithOldMaintenanceInfo, service, planWithMaintenanceInfo, "", "create succeeded", broker.Name, "yes"))
-				Eventually(session).Should(Say(`%s\s+%s\s+%s\s+%s\s+%s\s+%s\s+%s`, serviceInstanceWithNoMaintenanceInfo, service, planWithNoMaintenanceInfo, "", "create succeeded", broker.Name, ""))
-				Eventually(session).Should(Say(`%s\s+%s\s+`, userProvidedService, "user-provided"))
-				Eventually(session).Should(Exit(0))
-			})
+		It("should not output bound apps in the shared spaces", func() {
+			session := helpers.CF(command)
+			Eventually(session).Should(Exit(0))
+			Expect(session).To(SatisfyAll(
+				Say(managedService),
+				Say(appNameOnSpaceA),
+				Not(Say(appNameOnSpaceB)),
+			))
 		})
 	})
 })
