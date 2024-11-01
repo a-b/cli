@@ -5,6 +5,7 @@ PACKAGES ?= api actor command types util version integration/helpers
 LC_ALL = "en_US.UTF-8"
 
 CF_BUILD_SHA ?= $$(git rev-parse --short HEAD)
+CF_BUILD_VERSION ?= $$(git for-each-ref --sort=-taggerdate --format='%(refname:strip=2)' 'refs/tags/v8*' | tail -1)
 CF_BUILD_DATE ?= $$(date -u +"%Y-%m-%d")
 LD_FLAGS_COMMON=-w -s \
 	-X code.cloudfoundry.org/cli/version.binarySHA=$(CF_BUILD_SHA) \
