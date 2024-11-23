@@ -1,5 +1,5 @@
-name: "Check: Check release on package managers"
-run-name: "Check: Check release on package managers [${{ github.ref_name }}]"
+name: "test: package releases"
+run-name: "test: package releases [${{ github.ref_name }}]"
 
 on:
   workflow_dispatch:
@@ -27,15 +27,14 @@ defaults:
 
 jobs:
   test-homebrew:
-    name: Test Homebrew Repository
+    name: Run Homebrew Tests
     runs-on: macos-latest
     env:
       CLAW_URL: ${{ inputs.claw-url }}
       VERSION_BUILD: ${{ inputs.version }}
       VERSION_MAJOR: ${{ inputs.major-version }}
     steps:
-
-      - name: Install CF CLI via Homebrew
+      - name: Install CF CLI
         run: |
           set -evx
           
@@ -52,8 +51,8 @@ jobs:
           
           cf -v | grep "${VERSION_BUILD}"
 
-  test-deb:
-    name: Test Debian Repository
+  test-debian:
+    name: Run Debian Tests
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-latest]
@@ -63,8 +62,7 @@ jobs:
       VERSION_BUILD: ${{ inputs.version }}
       VERSION_MAJOR: ${{ inputs.major-version }}
     steps:
-
-      - name: Install CF CLI via apt
+      - name: Install CF CLI
         run: |
           set -o pipefail -e
           
@@ -86,9 +84,8 @@ jobs:
           
           cf -v | grep "${VERSION_BUILD}"
 
-
-  test-rpm-repo:
-    name: Test RPM Repository
+  test-rpm:
+    name: Run RPM Tests
     runs-on: ubuntu-latest
     container:
       image: fedora
@@ -97,25 +94,24 @@ jobs:
       VERSION_BUILD: ${{ inputs.version }}
       VERSION_MAJOR: ${{ inputs.major-version }}
     steps:
-
-      - name: Configure Custom CF Repository
+      - name: Setup Repository
         run: |
           curl -sL -o /etc/yum.repos.d/cloudfoundry-cli.repo  \
           ${CLAW_URL}/fedora/cloudfoundry-cli.repo
 
-      - name: Install cf cli package
+      - name: Install CF CLI
         run: dnf install -y cf${VERSION_MAJOR}-cli
 
-      - name: Print CF CLI Versions
+      - name: Verify Version
         run: |
           cf -v
           cf${VERSION_MAJOR} -v
 
-      - name: Test Version Match
+      - name: Check Version Match
         run: cf -v | grep -q "${VERSION_BUILD}"
 
   test-windows:
-    name: Test Windows Chocolatey Package
+    name: Run Windows Tests
     runs-on: windows-2019
     defaults:
       run:
@@ -124,23 +120,21 @@ jobs:
       VERSION_BUILD: ${{ inputs.version }}
       VERSION_MAJOR: ${{ inputs.major-version }}
     steps:
-
-      - name: Install cf cli package
+      - name: Install CF CLI
         run: choco install cloudfoundry-cli --version $env:VERSION_BUILD
 
-      - name: Print Chocolatey CF CLI Versions
+      - name: Verify Version
         run: |
           cd 'C:/ProgramData/chocolatey/lib/cloudfoundry-cli/tools'
           ./cf -v
           Invoke-Expression "./cf$env:VERSION_MAJOR -v"
 
-      - name: Test Chocolatey Version Match
+      - name: Check Version Match
         run: |
           cd 'C:/ProgramData/chocolatey/lib/cloudfoundry-cli/tools'
           $found = (./cf -v | Select-String "$env:VERSION_BUILD")
           if ($null -eq $found) {
             Write-Error "CF CLI version $env:VERSION_BUILD was not found" -ErrorAction Stop
           }
-
 
 # vim: set sw=2 ts=2 sts=2 et tw=78 foldlevel=2 fdm=indent nospell:

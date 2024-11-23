@@ -1,11 +1,11 @@
-name: Unit Tests
+name: "test: unit"
 
 run-name: >-
-  Unit Tests:
+  test: unit [
   ${{ github.event_name == 'pull_request' 
     && format('PR #{0} - {1}', github.event.pull_request.number, github.event.pull_request.title)
     || format('{0} to {1}', github.event_name, github.ref_name) 
-  }}
+  }}]
 
 on:
   workflow_dispatch:
@@ -29,8 +29,8 @@ permissions:
   contents: read
 
 jobs:
-  unit-tests:
-    name: Unit Tests (${{ matrix.os }})
+  run-unit:
+    name: Run Unit (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -47,21 +47,21 @@ jobs:
         shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash' }}
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Setup Go Environment
+    - name: Setup Go
       uses: actions/setup-go@v5
       with:
         go-version-file: go.mod
         check-latest: true
         cache: true
 
-    - name: Install Windows Build Dependencies
+    - name: Install Windows Tools
       if: matrix.os == 'windows-latest'
       run: choco install --no-progress --limit-output -y make
 
-    - name: Execute Unit Tests
+    - name: Run Tests
       run: make units
 
 # vim: set sw=2 ts=2 sts=2 et tw=78 foldlevel=2 fdm=indent nospell:

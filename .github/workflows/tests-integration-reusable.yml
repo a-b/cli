@@ -1,11 +1,4 @@
-# GitHub repo level Secrets and Variables
-
-# secrets.CLIENT_SECRET
-# secrets.GITHUB_TOKEN
-# secrets.SHEPHERD_SERVICE_ACCOUNT_TOKEN
-# vars.TEST_FLAKE_ATTEMPTS
-
-name: "pvt: run integration tests"
+name: "test: integration reusable"
 
 on:
   workflow_call:
@@ -38,7 +31,7 @@ env:
   FLAKE_ATTEMPTS: ${{ vars.TEST_FLAKE_ATTEMPTS || '4' }}
 
 jobs:
-  run-integration-tests:
+  run-tests:
     defaults:
       run:
         shell: bash
@@ -46,13 +39,13 @@ jobs:
     container: us-west2-docker.pkg.dev/shepherd-268822/shepherd2/concourse-resource:latest
     timeout-minutes: 120
     steps:
-    - name: Checkout cli
+    - name: Checkout CLI
       uses: actions/checkout@v4
       with:
         ref: ${{inputs.gitRef}}
         fetch-depth: 0
 
-    - name: Checkout cf-acceptance-tests
+    - name: Checkout CATs
       if: ${{ inputs.name == 'cats' }}
       uses: actions/checkout@v4
       with:
@@ -60,13 +53,13 @@ jobs:
         ref: release-candidate
         path: cf-acceptance-tests
 
-    - name: Checkout CF deployment tasks
+    - name: Checkout CF Tasks
       uses: actions/checkout@v4
       with:
         repository: cloudfoundry/cf-deployment-concourse-tasks
         path: cf-deployment-concourse-tasks
 
-    - name: Set Up Go
+    - name: Setup Go
       uses: actions/setup-go@v5
       with:
         go-version-file: go.mod
@@ -112,7 +105,7 @@ jobs:
         shepherd login service-account ${account_token}
         shepherd get lease ${lease_id} --namespace ${lease_namespace} --json | jq .output > metadata.json
 
-    - name: Add CATS config
+    - name: Setup CATs
       if: ${{ inputs.name == 'cats' }}
       run: |
         set -eu
@@ -180,7 +173,7 @@ jobs:
         cf enable-feature-flag diego_cnb
         cf enable-feature-flag service_instance_sharing
 
-    - name: Run CATS Tests
+    - name: Run CATs
       if: ${{ inputs.name == 'cats' }}
       run: |
         set -xeu
@@ -231,7 +224,7 @@ jobs:
 
         make integration-tests-full-ci
 
-    - name: Run Integration Tests with client credentials
+    - name: Run Client Creds Tests
       if: ${{ inputs.run-with-client-creds }}
       env:
         CF_INT_CLIENT_ID: 'potato-face'
@@ -259,3 +252,5 @@ jobs:
         cf auth
 
         make integration-tests-ci-client-creds
+
+# vim: set sw=2 ts=2 sts=2 et tw=78 foldlevel=2 fdm=indent nospell:
