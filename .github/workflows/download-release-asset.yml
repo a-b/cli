@@ -1,0 +1,41 @@
+name: Download Release Asset
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download-asset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Latest Draft Release
+        id: get_release
+        run: |
+          RELEASE_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases?per_page=1")
+          RELEASE_ID=$(echo "$RELEASE_DATA" | jq '.[0].id')
+          RELEASE_TAG=$(echo "$RELEASE_DATA" | jq -r '.[0].tag_name')
+          echo "RELEASE_ID=$RELEASE_ID" >> $GITHUB_ENV
+          echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+          echo "Found release: $RELEASE_TAG (ID: $RELEASE_ID)"
+
+      - name: Get Asset Info
+        id: get_asset
+        run: |
+          ASSETS_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/${{ env.RELEASE_ID }}/assets")
+          ASSET_URL=$(echo "$ASSETS_DATA" | jq -r '.[0].url')
+          echo "ASSET_URL=$ASSET_URL" >> $GITHUB_ENV
+          echo "Found asset URL: $ASSET_URL"
+
+      - name: Download Asset
+        run: |
+          echo "Downloading asset from release ${{ env.RELEASE_TAG }}..."
+          curl -L -H "Accept: application/octet-stream" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "${{ env.ASSET_URL }}" \
+            --output downloaded-test-file.txt
+          
+      - name: Display File Contents
+        run: |
+          echo "Contents of downloaded file:"
+          cat downloaded-test-file.txt

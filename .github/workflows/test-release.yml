@@ -1,0 +1,46 @@
+name: Test Release Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_note:
+        description: 'Custom release note'
+        required: false
+        default: 'Test release created via manual workflow dispatch'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Create test file
+        run: |
+          echo "This is a test file created by GitHub Actions" > test-file.txt
+          echo "Created at: $(date)" >> test-file.txt
+      
+      - name: Create Draft Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: test-release-${{ github.run_number }}
+          release_name: Test Release ${{ github.run_number }}
+          draft: true
+          prerelease: false
+          body: |
+            ${{ github.event.inputs.release_note }}
+            Run number: ${{ github.run_number }}
+            
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./test-file.txt
+          asset_name: test-file.txt
+          asset_content_type: text/plain
