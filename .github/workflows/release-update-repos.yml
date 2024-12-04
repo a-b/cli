@@ -19,7 +19,7 @@ jobs:
       VERSION_MAJOR: 8
     outputs:
       version-build: ${{ steps.parse-semver.outputs.version-build }}
-      version-major: ${{ env.VERSION_MAJOR }}
+      version-major: ${{ steps.parse-semver.outputs.version-major }}
       version-minor: ${{ steps.parse-semver.outputs.version-minor }}
       version-patch: ${{ steps.parse-semver.outputs.version-patch }}
       claw-url: ${{ steps.set-claw-url.outputs.claw-url }}
@@ -51,14 +51,15 @@ jobs:
 
         echo "VERSION_BUILD=${version}"       >> "${GITHUB_ENV}"
 
-    - name: Test if CLAW serve this version
+    - name: Test if artifact is available
       env:
-        CLAW_URL: ${{ steps.set-claw-url.outputs.claw-url }}
+        version:       ${{ steps.parse-semver.outputs.version-build }}
+        version_major: ${{ steps.parse-semver.outputs.version-major }}
       run: >
         set -vx
-
-        curl --head "${CLAW_URL}/stable?release=linux64-binary&version=${VERSION_BUILD}&source=test" 2>&1 |
-        grep --quiet --regexp 'HTTP.*302'
+        release="cf${version_major}-cli_${version:?}_linux_x86-64.tgz"
+        curl --head "https://s3-us-west-1.amazonaws.com/v${version_major:?}-cf-cli-releases/releases/v${version:?}/${release:?}" 2>&1 |
+        grep --quiet --regexp 'HTTP.*200'
 
   update-homebrew:
     name: Update Homebrew Repository
@@ -96,16 +97,18 @@ jobs:
       run: |
         set -x
 
-        curl -L "${CLAW_URL}/stable?release=macosx64-binary&version=${VERSION_BUILD}&source=github-rel" \
+        s3_url="https://s3-us-west-1.amazonaws.com/v${VERSION_MAJOR:?}-cf-cli-releases/releases/v${VERSION_BUILD:?}/cf${VERSION_MAJOR:?}-cli_${VERSION_BUILD:?}"
+
+        curl -L "${s3_url:?}_osx.tgz" \
           > cf-cli-osx-tarball/cf-cli_osx.tgz
 
-        curl -L "${CLAW_URL}/stable?release=macosarm-binary&version=${VERSION_BUILD}&source=github-rel" \
+        curl -L "${s3_url:?}_macosarm.tgz" \
           > cf-cli-macosarm-tarball/cf-cli_macosarm.tgz
 
-        curl -L "${CLAW_URL}/stable?release=linux64-binary&version=${VERSION_BUILD}&source=github-rel" \
+        curl -L "${s3_url:?}_linux_x86-64.tgz" \
           > cf-cli-linux-tarball/cf-cli_linux64.tgz
 
-        curl -L "${CLAW_URL}/stable?release=linuxarm64-binary&version=${VERSION_BUILD}&source=github-rel" \
+        curl -L "${s3_url:?}_linux_arm64.tgz" \
           > cf-cli-linux-tarball/cf-cli_linuxarm64.tgz
 
         # Because CLAW always returns 200 we have to check if we got archive
