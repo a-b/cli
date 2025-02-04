@@ -136,13 +136,14 @@ jobs:
       - name: claim
         id: claim
         env:
-          account_token:       ${{ secrets.SHEPHERD_SERVICE_ACCOUNT_TOKEN }}
-          template_argument:   ${{ vars.SHEPHERD_TEMPLATE_ARGUMENT        }}
-          template_name:       ${{ vars.SHEPHERD_TEMPLATE_NAME       || 'cfd-bosh-lite@1.0' }}
-          template_namespace:  ${{ vars.SHEPHERD_TEMPLATE_NAMESPACE  || 'official'          }}
-          lease_duration:      ${{ vars.SHEPHERD_LEASE_DURATION      || '8h'                }}
-          lease_namespace:     ${{ inputs.lease_namespace  || vars.SHEPHERD_LEASE_NAMESPACE || 'tas-devex' }}
-          cfd_version:         ${{ inputs.cfd_version      || vars.CFD_VERSION              || '' }}
+          account_token:            ${{ secrets.SHEPHERD_SERVICE_ACCOUNT_TOKEN }}
+          template_argument:        ${{ vars.SHEPHERD_TEMPLATE_ARGUMENT        }}
+          template_name:            ${{ vars.SHEPHERD_TEMPLATE_NAME       || 'cfd-bosh-lite@1.0' }}
+          template_namespace:       ${{ vars.SHEPHERD_TEMPLATE_NAMESPACE  || 'official'          }}
+          lease_duration:           ${{ vars.SHEPHERD_LEASE_DURATION      || '8h'                }}
+          lease_namespace:          ${{ inputs.lease_namespace  || vars.SHEPHERD_LEASE_NAMESPACE || 'tas-devex' }}
+          cfd_version:              ${{ inputs.cfd_version      || vars.CFD_VERSION              || '' }}
+          additional_opsfiles_b64:  ${{ inputs.additional_opsfiles_b64 || vars.ADDITIONAL_OPSFILES_B64 || '' }}
         run: |
           shepherd login service-account ${account_token}
 
@@ -156,7 +157,7 @@ jobs:
             "root_disk_gb": 32,
             "disk_pool_gb": 150,
             "cfd_version": "${cfd_version}",
-            "additional_opsfiles_b64": ""
+            "additional_opsfiles_b64": "${additional_opsfiles_b64}"
           }
           EOF
               )
