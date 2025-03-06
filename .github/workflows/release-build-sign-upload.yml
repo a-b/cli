@@ -114,7 +114,7 @@ jobs:
     name: Build Linux
     needs:
     - setup
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     env:
       VERSION_BUILD: ${{ needs.setup.outputs.version-build }}
@@ -905,7 +905,7 @@ jobs:
     needs:
     - setup
     - build-linux
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     container:
       image: ubuntu:20.04
     steps:
