@@ -48,8 +48,8 @@ on:
           - minor
           - patch
 
-permissions:
-  contents: write
+# permissions:
+#   contents: write
 
 defaults:
   run:
@@ -101,20 +101,20 @@ jobs:
         echo "version-minor=${version_minor}" >> "${GITHUB_OUTPUT}"
         echo "version-patch=${version_patch}" >> "${GITHUB_OUTPUT}"
 
-    - name: Publish Tag
-      run: |
-        new_tag="v${{ steps.bump-version.outputs.version-build }}"
-        echo "new version is $new_tag"
-        git config user.name "GitHub Actions"
-        git config user.email "github-actions@users.noreply.github.com"
-        git tag -am "Bump cli version ${new_tag}" ${new_tag}
-        git push origin $new_tag
+    # - name: Publish Tag
+    #   run: |
+    #     new_tag="v${{ steps.bump-version.outputs.version-build }}"
+    #     echo "new version is $new_tag"
+    #     git config user.name "GitHub Actions"
+    #     git config user.email "github-actions@users.noreply.github.com"
+    #     git tag -am "Bump cli version ${new_tag}" ${new_tag}
+    #     git push origin $new_tag
 
   build-linux:
     name: Build Linux
     needs:
     - setup
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     env:
       VERSION_BUILD: ${{ needs.setup.outputs.version-build }}
@@ -138,6 +138,7 @@ jobs:
 
     - name: Install Linux Packages
       run: sudo apt update && sudo apt install -y --no-install-recommends fakeroot
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -175,110 +176,111 @@ jobs:
         name: cf-cli-linux-binaries
         path: out/cf-cli_linux*
 
-    - name: Build RedHat Packages
-      env:
-        SIGNING_KEY_GPG_ID: ${{ vars.SIGNING_KEY_GPG_ID }}
-      run: |
-        set -ex
-        set -o pipefail
-
-        root=$PWD
-
-        cat<< EOF >~/.rpmmacros
-        $SIGNING_KEY_GPG_ID
-        EOF
-
-        RPM_VERSION=${VERSION_BUILD//-/_}
-
-        mkdir -pv $root/packaged
-
-        echo "Build 32-bit RedHat package"
-        (
-          pushd cli-ci/ci/installers/rpm
-          cp $root/out/cf-cli_linux_i686 cf${VERSION_MAJOR}
-          cp ../../license/NOTICE .
-          cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES LICENSE
-          cp ../completion/cf${VERSION_MAJOR} cf${VERSION_MAJOR}.bash
-          echo "Version: ${RPM_VERSION}" > cf-cli.spec
-          cat cf${VERSION_MAJOR}-cli.spec.template >> cf-cli.spec
-          rpmbuild --target i386 --define "_topdir $(pwd)/build" -bb cf-cli.spec
-          mv build/RPMS/i386/cf${VERSION_MAJOR}-cli*.rpm $root/packaged/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_i686.rpm
-          popd
-        )
-
-        echo "Build 64-bit RedHat package"
-        (
-          pushd cli-ci/ci/installers/rpm
-          cp $root/out/cf-cli_linux_x86-64 cf${VERSION_MAJOR}
-          cp ../../license/NOTICE .
-          cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES LICENSE
-          cp ../completion/cf${VERSION_MAJOR} cf${VERSION_MAJOR}.bash
-          echo "Version: ${RPM_VERSION}" > cf-cli.spec
-          cat cf${VERSION_MAJOR}-cli.spec.template >> cf-cli.spec
-          rpmbuild --target x86_64 --define "_topdir $(pwd)/build" -bb cf-cli.spec
-          mv build/RPMS/x86_64/cf${VERSION_MAJOR}-cli*.rpm $root/packaged/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_x86-64.rpm
-          popd
-        )
-
-        echo "Build arm64 RedHat package"
-        (
-          pushd cli-ci/ci/installers/rpm
-          cp $root/out/cf-cli_linux_arm64 cf${VERSION_MAJOR}
-          cp ../../license/NOTICE .
-          cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES LICENSE
-          cp ../completion/cf${VERSION_MAJOR} cf${VERSION_MAJOR}.bash
-          echo "Version: ${RPM_VERSION}" > cf-cli.spec
-          cat cf${VERSION_MAJOR}-cli.spec.template >> cf-cli.spec
-          rpmbuild --target aarch64 --define "_topdir $(pwd)/build" -bb cf-cli.spec
-          mv build/RPMS/aarch64/cf${VERSION_MAJOR}-cli*.rpm $root/packaged/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_aarch64.rpm
-          popd
-        )
-
-    - name: Load GPG key
-      env:
-        SIGNING_KEY_GPG: ${{ secrets.SIGNING_KEY_GPG }}
-      run: |
-        echo -n "$SIGNING_KEY_GPG" | base64 --decode | gpg --no-tty --batch --pinentry-mode loopback --import
-
-    - name: View GPG keys
-      run: |
-        gpg --list-keys
-
-    - name: Sign RedHat Packages
-      env:
-        SIGNING_KEY_GPG_ID:         ${{ vars.SIGNING_KEY_GPG_ID }}
-        SIGNING_KEY_GPG_PASSPHRASE: ${{ secrets.SIGNING_KEY_GPG_PASSPHRASE }}
-      run: |
-        set -ex
-        set -o pipefail
-
-        mkdir signed-redhat-installer
-
-        cat<< EOF >~/.rpmmacros
-        %_signature gpg
-        %_gpg_name $SIGNING_KEY_GPG_ID
-        %_gpgbin /usr/bin/gpg2
-        %__gpg_sign_cmd %{__gpg} gpg --force-v3-sigs --batch --verbose --no-armor \
-          --passphrase "$SIGNING_KEY_GPG_PASSPHRASE" --no-secmem-warning -u "%{_gpg_name}" \
-          -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
-        EOF
-
-        cp packaged/cf*.rpm   signed-redhat-installer/
-
-        #TODO: consider to add --key-id
-        #TODO: DEV shim
-        rpmsign --addsign signed-redhat-installer/*.rpm
-
-    - name: Print RPM Signature
-      run: rpm -q --qf 'FN:\t%{FILENAMES}\nNAME:\t%{NAME}\nPGP:\t%{SIGPGP:pgpsig}\nGPG:\t%{SIGGPG:pgpsig}\n' -p *.rpm
-      working-directory: signed-redhat-installer
-
-    - name: Store Signed Linux RPM Packages
-      uses: actions/upload-artifact@v4
-      with:
-        if-no-files-found: error
-        name: cf-cli-linux-rpm-packages
-        path: signed-redhat-installer/*.rpm
+    # - name: Build RedHat Packages
+    #   env:
+    #     SIGNING_KEY_GPG_ID: ${{ vars.SIGNING_KEY_GPG_ID }}
+    #   run: |
+    #     set -ex
+    #     set -o pipefail
+    #
+    #     root=$PWD
+    #
+    #     cat<< EOF >~/.rpmmacros
+    #     $SIGNING_KEY_GPG_ID
+    #     EOF
+    #
+    #     RPM_VERSION=${VERSION_BUILD//-/_}
+    #
+    #     mkdir -pv $root/packaged
+    #
+    #     echo "Build 32-bit RedHat package"
+    #     (
+    #       pushd cli-ci/ci/installers/rpm
+    #       cp $root/out/cf-cli_linux_i686 cf${VERSION_MAJOR}
+    #       cp ../../license/NOTICE .
+    #       cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES LICENSE
+    #       cp ../completion/cf${VERSION_MAJOR} cf${VERSION_MAJOR}.bash
+    #       echo "Version: ${RPM_VERSION}" > cf-cli.spec
+    #       cat cf${VERSION_MAJOR}-cli.spec.template >> cf-cli.spec
+    #       rpmbuild --target i386 --define "_topdir $(pwd)/build" -bb cf-cli.spec
+    #       mv build/RPMS/i386/cf${VERSION_MAJOR}-cli*.rpm $root/packaged/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_i686.rpm
+    #       popd
+    #     )
+    #
+    #     echo "Build 64-bit RedHat package"
+    #     (
+    #       pushd cli-ci/ci/installers/rpm
+    #       cp $root/out/cf-cli_linux_x86-64 cf${VERSION_MAJOR}
+    #       cp ../../license/NOTICE .
+    #       cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES LICENSE
+    #       cp ../completion/cf${VERSION_MAJOR} cf${VERSION_MAJOR}.bash
+    #       echo "Version: ${RPM_VERSION}" > cf-cli.spec
+    #       cat cf${VERSION_MAJOR}-cli.spec.template >> cf-cli.spec
+    #       rpmbuild --target x86_64 --define "_topdir $(pwd)/build" -bb cf-cli.spec
+    #       mv build/RPMS/x86_64/cf${VERSION_MAJOR}-cli*.rpm $root/packaged/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_x86-64.rpm
+    #       popd
+    #     )
+    #
+    #     echo "Build arm64 RedHat package"
+    #     (
+    #       pushd cli-ci/ci/installers/rpm
+    #       cp $root/out/cf-cli_linux_arm64 cf${VERSION_MAJOR}
+    #       cp ../../license/NOTICE .
+    #       cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES LICENSE
+    #       cp ../completion/cf${VERSION_MAJOR} cf${VERSION_MAJOR}.bash
+    #       echo "Version: ${RPM_VERSION}" > cf-cli.spec
+    #       cat cf${VERSION_MAJOR}-cli.spec.template >> cf-cli.spec
+    #       rpmbuild --target aarch64 --define "_topdir $(pwd)/build" -bb cf-cli.spec
+    #       mv build/RPMS/aarch64/cf${VERSION_MAJOR}-cli*.rpm $root/packaged/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_aarch64.rpm
+    #       popd
+    #     )
+    #
+    #
+    # - name: Load GPG key
+    #   env:
+    #     SIGNING_KEY_GPG: ${{ secrets.SIGNING_KEY_GPG }}
+    #   run: |
+    #     echo -n "$SIGNING_KEY_GPG" | base64 --decode | gpg --no-tty --batch --pinentry-mode loopback --import
+    #
+    # - name: View GPG keys
+    #   run: |
+    #     gpg --list-keys
+    #
+    # - name: Sign RedHat Packages
+    #   env:
+    #     SIGNING_KEY_GPG_ID:         ${{ vars.SIGNING_KEY_GPG_ID }}
+    #     SIGNING_KEY_GPG_PASSPHRASE: ${{ secrets.SIGNING_KEY_GPG_PASSPHRASE }}
+    #   run: |
+    #     set -ex
+    #     set -o pipefail
+    #
+    #     mkdir signed-redhat-installer
+    #
+    #     cat<< EOF >~/.rpmmacros
+    #     %_signature gpg
+    #     %_gpg_name $SIGNING_KEY_GPG_ID
+    #     %_gpgbin /usr/bin/gpg2
+    #     %__gpg_sign_cmd %{__gpg} gpg --force-v3-sigs --batch --verbose --no-armor \
+    #       --passphrase "$SIGNING_KEY_GPG_PASSPHRASE" --no-secmem-warning -u "%{_gpg_name}" \
+    #       -sbo %{__signature_filename} --digest-algo sha256 %{__plaintext_filename}
+    #     EOF
+    #
+    #     cp packaged/cf*.rpm   signed-redhat-installer/
+    #
+    #     #TODO: consider to add --key-id
+    #     #TODO: DEV shim
+    #     rpmsign --addsign signed-redhat-installer/*.rpm
+    #
+    # - name: Print RPM Signature
+    #   run: rpm -q --qf 'FN:\t%{FILENAMES}\nNAME:\t%{NAME}\nPGP:\t%{SIGPGP:pgpsig}\nGPG:\t%{SIGGPG:pgpsig}\n' -p *.rpm
+    #   working-directory: signed-redhat-installer
+    #
+    # - name: Store Signed Linux RPM Packages
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     if-no-files-found: error
+    #     name: cf-cli-linux-rpm-packages
+    #     path: signed-redhat-installer/*.rpm
 
     - name: Build Debian Packages
       env:
@@ -381,531 +383,13 @@ jobs:
         name: cf-cli-linux-deb-packages
         path: packaged-deb/*.deb
 
-  build-macos:
-    name: Build macOS
-    needs:
-    - setup
-    env:
-      VERSION_BUILD: ${{ needs.setup.outputs.version-build }}
-      VERSION_MAJOR: ${{ needs.setup.outputs.version-major }}
-    runs-on: macos-latest
-    steps:
-
-    - name: Get Build Version
-      id: get_build_version
-      run: echo "VERSION_BUILD $VERSION_BUILD"
-
-    - name: Checkout cli
-      uses: actions/checkout@v4
-
-    - name: Checkout cli-ci
-      uses: actions/checkout@v4
-      with:
-        repository: cloudfoundry/cli-ci.git
-        path: cli-ci
-        ref: main
-
-    - name: Checkout bomutils
-      uses: actions/checkout@v4
-      with:
-        repository: hogliux/bomutils.git
-        ref: 0.2
-        path: bomutils
-
-    - name: Build bomutils
-      working-directory: bomutils
-      run: make
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-
-    - name: Update Homebrew
-      run: |
-        brew tap pivotalsoftware/gon
-        brew update
-        cat "$(brew --repository)/Library/Taps/pivotalsoftware/homebrew-gon/gon.rb" > .github/brew-formulae
-
-    - name: Configure Homebrew cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/Library/Caches/Homebrew/gon--*
-          ~/Library/Caches/Homebrew/downloads/*--gon-*
-        key: brew-${{ hashFiles('.github/brew-formulae') }}
-        restore-keys: brew-
-
-    - name: Install Homebrew dependencies
-      run: |
-        env HOMEBREW_NO_AUTO_UPDATE=1 brew install pivotalsoftware/gon/gon coreutils
-
-    - name: Print go environment
-      id: go-cache-paths
-      run: |
-        echo "go-build=$(go env GOCACHE)" >> "${GITHUB_OUTPUT}"
-        echo "go-mod=$(go env GOMODCACHE)" >> "${GITHUB_OUTPUT}"
-        go env
-
-    - name: Go Assets Cache
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ steps.go-cache-paths.outputs.go-mod }}
-          ${{ steps.go-cache-paths.outputs.go-build }}
-        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-
-
-    - name: Build macOS Binaries
-      env: 
-        CF_BUILD_VERSION: ${VERSION_BUILD}
-      run: |
-        make out/cf-cli_osx
-        make out/cf-cli_macosarm
-
-    - name: Store macOS Binaries
-      uses: actions/upload-artifact@v4
-      with:
-        if-no-files-found: error
-        name: cf-cli-macos-binaries
-        path: out/cf-cli*
-
-    - name: Build macOS x86 Installer
-      run: |
-        set -ex
-        set -o pipefail
-
-        root=$PWD
-
-        mkdir -pv $root/packaged
-
-        echo "Building OS X installer"
-        (
-        SIZE="$(BLOCKSIZE=1000 du $root/out/cf-cli_osx | cut -f 1)"
-
-        pushd cli-ci/ci/installers/osx_v${VERSION_MAJOR}
-          sed -i -e "s/VERSION/${VERSION_BUILD}/g" Distribution
-          sed -i -e "s/SIZE/${SIZE}/g" Distribution
-          mkdir -p cf-cli/usr/local/bin cf-cli/usr/local/share/doc/cf${VERSION_MAJOR}-cli
-
-          cp $root/out/cf-cli_osx cf-cli/usr/local/bin/cf${VERSION_MAJOR}
-          gln -frs cf-cli/usr/local/bin/cf${VERSION_MAJOR} cf-cli/usr/local/bin/cf
-          cp ../../license/NOTICE cf-cli/usr/local/share/doc/cf${VERSION_MAJOR}-cli
-          cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES cf-cli/usr/local/share/doc/cf${VERSION_MAJOR}-cli/LICENSE
-          chmod -R go-w cf-cli
-          pushd cf-cli
-            find usr | cpio -o --format=odc | gzip -c > ../Payload
-          popd
-
-          $root/bomutils/build/bin/ls4mkbom cf-cli | sed 's/1000\/1000/0\/80/' > bom_list
-          mkbom -i bom_list Bom
-          mv Bom Payload com.cloudfoundry.cf${VERSION_MAJOR}-cli.pkg
-          xar -c --compression none -f cf${VERSION_MAJOR}-cli-installer_osx.pkg com.cloudfoundry.cf${VERSION_MAJOR}-cli.pkg Distribution
-          mv cf${VERSION_MAJOR}-cli-installer_osx.pkg $root/packaged/cf${VERSION_MAJOR}-cli-installer_osx.pkg
-        popd
-        )
-
-    - name: Build macOS ARM Installer
-      run: |
-        set -ex
-        set -o pipefail
-
-        root=$PWD
-
-        mkdir -pv $root/packaged
-
-        echo "Build macOS ARM Installer"
-        (
-        SIZE="$(BLOCKSIZE=1000 du $root/out/cf-cli_macosarm | cut -f 1)"
-
-        pushd cli-ci/ci/installers/osx_v${VERSION_MAJOR}
-          sed -i -e "s/VERSION/${VERSION_BUILD}/g" Distribution
-          sed -i -e "s/SIZE/${SIZE}/g" Distribution
-          mkdir -p cf-cli/usr/local/bin cf-cli/usr/local/share/doc/cf${VERSION_MAJOR}-cli
-
-          cp $root/out/cf-cli_macosarm cf-cli/usr/local/bin/cf${VERSION_MAJOR}
-          gln -frs cf-cli/usr/local/bin/cf${VERSION_MAJOR} cf-cli/usr/local/bin/cf
-          cp ../../license/NOTICE cf-cli/usr/local/share/doc/cf${VERSION_MAJOR}-cli
-          cp ../../license/LICENSE-WITH-3RD-PARTY-LICENSES cf-cli/usr/local/share/doc/cf${VERSION_MAJOR}-cli/LICENSE
-          chmod -R go-w cf-cli
-          pushd cf-cli
-            find usr | cpio -o --format=odc | gzip -c > ../Payload
-          popd
-
-          $root/bomutils/build/bin/ls4mkbom cf-cli | sed 's/1000\/1000/0\/80/' > bom_list
-          mkbom -i bom_list Bom
-          mv Bom Payload com.cloudfoundry.cf${VERSION_MAJOR}-cli.pkg
-          xar -c --compression none -f cf${VERSION_MAJOR}-cli-installer_macosarm.pkg com.cloudfoundry.cf${VERSION_MAJOR}-cli.pkg Distribution
-          mv cf${VERSION_MAJOR}-cli-installer_macosarm.pkg $root/packaged/cf${VERSION_MAJOR}-cli-installer_macosarm.pkg
-        popd
-        )
-
-    - name: Load macos key
-      env:
-        SIGNING_KEY_MAC_ID:         ${{ vars.SIGNING_KEY_MAC_ID }}
-        SIGNING_KEY_MAC_PASSPHRASE: ${{ secrets.SIGNING_KEY_MAC_PASSPHRASE }}
-        SIGNING_KEY_MAC_PFX:        ${{ secrets.SIGNING_KEY_MAC_PFX }}
-
-      run: |
-        echo -n "$SIGNING_KEY_MAC_PFX" | base64 --decode > mac-signing-key.p12
-        security list-keychains -d user -s login
-
-        ORIGINAL_KEYCHAIN="$(security default-keychain | sed -e 's/[ "]*\([^"]*\)[ "]*/\1/')"
-        KEYCHAIN_PATH="$HOME/Library/Keychains/build.keychain-db"
-
-        # Create build keychain
-        security create-keychain -p "$SIGNING_KEYCHAIN_PASSPHRASE" "$KEYCHAIN_PATH"
-        # trap "security delete-keychain $KEYCHAIN_PATH" 0
-
-        # Append build keychain to the user domain
-        security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
-
-        # Remove relock timeout
-        security set-keychain-settings "$KEYCHAIN_PATH"
-
-        # Unlock build keychain
-        security unlock-keychain -p "$SIGNING_KEYCHAIN_PASSPHRASE" "$KEYCHAIN_PATH"
-
-        # Add certificate to keychain
-        security import mac-signing-key.p12 -k "$KEYCHAIN_PATH" -P "$SIGNING_KEY_MAC_PASSPHRASE" -A -T $(which codesign) -T $(which productsign)
-
-        # Enable codesigning from a non user interactive shell
-        security set-key-partition-list -S apple-tool:,apple:, -s -k "$SIGNING_KEYCHAIN_PASSPHRASE" -D "${IDENTITY_CERTIFICATE}" -t private "$KEYCHAIN_PATH" || echo set-key-partition-list private failed
-        rm mac-signing-key.p12
-
-        #TODO: clean keychain in a separate step
-        # Delete build keychain
-        # security delete-keychain "$KEYCHAIN_PATH"
-
-    - name: Sign macOS
-      env:
-        VERSION_MAJOR:              ${{ needs.setup.outputs.version-major }}
-        SIGNING_KEY_MAC_ID:         ${{ vars.SIGNING_KEY_MAC_ID }}
-        SIGNING_KEY_MAC_PASSPHRASE: ${{ secrets.SIGNING_KEY_MAC_PASSPHRASE }}
-      run: |
-
-        root=$PWD
-
-        mkdir -pv signed-macos-installer
-
-        #TODO: DEV shim
-        # cp \
-        productsign --timestamp \
-          --sign "$SIGNING_KEY_MAC_ID" \
-          "$root/packaged/cf${VERSION_MAJOR}-cli-installer_osx.pkg" \
-          "signed-macos-installer/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_osx.pkg"
-
-        #TODO: DEV shim
-        # cp \
-        productsign --timestamp \
-          --sign "$SIGNING_KEY_MAC_ID" \
-          "$root/packaged/cf${VERSION_MAJOR}-cli-installer_macosarm.pkg" \
-          "signed-macos-installer/cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_macosarm.pkg"
-
-    - name: Store macOS Signed Packages
-      uses: actions/upload-artifact@v4
-      with:
-        if-no-files-found: error
-        name: cf-cli-macos-packages
-        path: signed-macos-installer/*.pkg
-
-
-  build-windows:
-    name: Build Windows
-    needs:
-    - setup
-    runs-on: windows-2019
-    defaults:
-      run:
-        shell: pwsh
-    env:
-      VERSION_BUILD: ${{ needs.setup.outputs.version-build }}
-      VERSION_MAJOR: ${{ needs.setup.outputs.version-major }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Get build-time dependencies
-        run: |
-          choco install --no-progress --limit-output -y make
-          go install github.com/akavel/rsrc@v0.10.2
-
-      - name: Build CF CLI for Windows
-        env: 
-          CF_BUILD_VERSION: ${VERSION_BUILD}
-        run: |
-          Get-Command make
-          Get-Item Makefile
-          make out/cf-cli_win32.exe
-          make out/cf-cli_winx64.exe
-
-      - name: Set up certificate
-        run: |
-          echo "${{ secrets.SIGNING_KEY_WINDOWS_DIGICERT_CLIENT_CERT_B64 }}" | base64 --decode > /d/Certificate_pkcs12.p12
-        shell: bash
-
-      - name: Set variables
-        id: variables
-        run: |
-          echo "SM_HOST=${{ vars.SIGNING_KEY_WINDOWS_DIGICERT_HOST }}" >> "$GITHUB_ENV"
-          echo "SM_API_KEY=${{ secrets.SIGNING_KEY_WINDOWS_DIGICERT_API_KEY }}" >> "$GITHUB_ENV"
-          echo "SM_CLIENT_CERT_FILE=D:\\Certificate_pkcs12.p12" >> "$GITHUB_ENV"
-          echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SIGNING_KEY_WINDOWS_DIGICERT_CLIENT_CERT_INSTALLATION_PASSWORD }}" >> "$GITHUB_ENV"
-          echo "C:\Program Files (x86)\Windows Kits\10\App Certification Kit" >> $GITHUB_PATH
-          echo "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools" >> $GITHUB_PATH
-          echo "C:\Program Files\DigiCert\DigiCert Keylocker Tools" >> $GITHUB_PATH
-        shell: bash
-
-      - name: Setup Keylocker KSP on Windows
-        run: |
-          curl -X GET  https://one.digicert.com/signingmanager/api-ui/v1/releases/Keylockertools-windows-x64.msi/download -H "x-api-key:%SM_API_KEY%" -o Keylockertools-windows-x64.msi
-          msiexec /i Keylockertools-windows-x64.msi /quiet /qn
-          smksp_registrar.exe list
-          smctl.exe keypair ls
-          C:\Windows\System32\certutil.exe -csp "DigiCert Signing Manager KSP" -key -user
-          smctl windows certsync
-        shell: cmd
-
-      - name: Sign Windows binaries
-        run: |
-          smctl healthcheck --all
-          smctl sign --fingerprint ${{ vars.SIGNING_KEY_WINDOWS_DIGICERT_CERT_FINGERPRINT }} --tool signtool --input out\cf-cli_win32.exe
-          smctl sign --fingerprint ${{ vars.SIGNING_KEY_WINDOWS_DIGICERT_CERT_FINGERPRINT }} --tool signtool --input out\cf-cli_winx64.exe
-
-      - name: View binary signatures
-        run: |
-          Get-AuthenticodeSignature -Verbose -ErrorAction Stop .\out\cf-cli_win32.exe
-          Get-AuthenticodeSignature -Verbose -ErrorAction Stop .\out\cf-cli_winx64.exe
-
-      - name: Make symlinks
-        run: |
-          New-Item -ItemType SymbolicLink -Target .\out\cf-cli_win32.exe -Path .\out\cf-cli_win32-link.exe
-          New-Item -ItemType SymbolicLink -Target .\out\cf-cli_winx64.exe -Path .\out\cf-cli_winx64-link.exe
-
-      - name: Save signed binaries as a GitHub Action Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cf-cli-windows-binaries
-          if-no-files-found: error
-          path: out/cf-cli_win*.exe
-
-      - name: Install innosetup
-        run: .\.github\win\install-innosetup.ps1
-
-      - name: Run innosetup
-        run: |
-          mkdir "${env:RUNNER_TEMP}\winx64"
-          .\.github\win\run-innosetup.ps1 -InnoSetupConfig ".github\win\windows-installer-v${env:VERSION_MAJOR}-x64.iss" -CfBinary "out\cf-cli_winx64.exe" -InstallerOutput "${env:RUNNER_TEMP}\winx64\cf${env:VERSION_MAJOR}_installer.exe"
-          mkdir "${env:RUNNER_TEMP}\win32"
-          .\.github\win\run-innosetup.ps1 -InnoSetupConfig ".github\win\windows-installer-v${env:VERSION_MAJOR}-x86.iss" -CfBinary "out\cf-cli_win32.exe" -InstallerOutput "${env:RUNNER_TEMP}\win32\cf${env:VERSION_MAJOR}_installer.exe"
-
-      - name: Sign Windows installers
-        run: |
-          smctl sign --fingerprint ${{ vars.SIGNING_KEY_WINDOWS_DIGICERT_CERT_FINGERPRINT }} --tool signtool --input "${env:RUNNER_TEMP}\win32\cf${env:VERSION_MAJOR}_installer.exe"
-          smctl sign --fingerprint ${{ vars.SIGNING_KEY_WINDOWS_DIGICERT_CERT_FINGERPRINT }} --tool signtool --input "${env:RUNNER_TEMP}\winx64\cf${env:VERSION_MAJOR}_installer.exe"
-
-      - name: View installer signature
-        run: |
-          Get-AuthenticodeSignature -Verbose -ErrorAction Stop "${env:RUNNER_TEMP}\win32\cf${env:VERSION_MAJOR}_installer.exe"
-          Get-AuthenticodeSignature -Verbose -ErrorAction Stop "${env:RUNNER_TEMP}\winx64\cf${env:VERSION_MAJOR}_installer.exe"
-
-      - name: Arrange files for upload
-        # note the -Path flag takes comma-delimited args
-        run: |
-          Copy-Item -Destination "${env:RUNNER_TEMP}\win32" -Path .github\win\LICENSE,.github\win\NOTICE
-          Copy-Item -Destination "${env:RUNNER_TEMP}\winx64" -Path .github\win\LICENSE,.github\win\NOTICE
-
-      - name: Zip Windows artifact
-        run: |
-          pushd "${env:RUNNER_TEMP}\win32"
-            $installer_zip_filename="${env:RUNNER_TEMP}\cf${env:VERSION_MAJOR}-cli-installer_${env:VERSION_BUILD}_win32.zip"
-            Compress-Archive -DestinationPath "$installer_zip_filename" -Path *
-          popd
-          pushd "${env:RUNNER_TEMP}\winx64"
-            $installer_zip_filename="${env:RUNNER_TEMP}\cf${env:VERSION_MAJOR}-cli-installer_${env:VERSION_BUILD}_winx64.zip"
-            Compress-Archive -DestinationPath "$installer_zip_filename" -Path *
-          popd
-          Get-ChildItem "${env:RUNNER_TEMP}"
-
-      - name: Save installer and dist files as a GitHub Action Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cf-cli-windows-packages
-          if-no-files-found: error
-          path: ${{ runner.temp }}/cf${{ needs.setup.outputs.version-major }}-cli-installer*win*.zip
-
-#################################
-######## Release Section ########
-#################################
-
-  s3-upload:
-    name: Upload Artifacts to S3 bucket
-    runs-on: ubuntu-latest
-    needs:
-    - setup
-    - test-rpm-package
-    - test-deb-package
-    - test-macos
-    - test-windows
-    permissions:
-      actions: read
-      contents: read
-    env:
-      AWS_ACCESS_KEY_ID:     ${{ vars.AWS_ACCESS_KEY_ID }}
-      AWS_REGION:            ${{ vars.AWS_REGION }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_S3_BUCKET:         ${{ needs.setup.outputs.aws-s3-bucket }}
-      VERSION_BUILD:         ${{ needs.setup.outputs.version-build }}
-      VERSION_MAJOR:         ${{ needs.setup.outputs.version-major }}
-    steps:
-
-    - name: Checkout cli
-      uses: actions/checkout@v4
-
-    - name: Download signed artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: signed # download all artifacts to 'signed/'
-
-    - name: Archive nix binaries for upload
-      run: |
-
-        prepare_legal() {
-            cp ../../.github/license/LICENSE-WITH-3RD-PARTY-LICENSES  LICENSE
-            cp ../../.github/license/CF_NOTICE  NOTICE
-        }
-
-        prepare_artifacts() {
-            chmod +x cf${VERSION_MAJOR}
-            ln -s cf${VERSION_MAJOR} cf
-            prepare_legal
-        }
-
-        prepare_win_artifacts() {
-            cp cf${VERSION_MAJOR}.exe cf.exe
-            prepare_legal
-        }
-
-        pushd signed
-          mkdir linux_i686 linux_x86-64 linux_arm64
-          mv cf-cli-linux-binaries/cf-cli_linux_i686 linux_i686/cf${VERSION_MAJOR}
-          mv cf-cli-linux-binaries/cf-cli_linux_x86-64 linux_x86-64/cf${VERSION_MAJOR}
-          mv cf-cli-linux-binaries/cf-cli_linux_arm64 linux_arm64/cf${VERSION_MAJOR}
-          pushd linux_i686
-            prepare_artifacts
-            tar -cvzf cf${VERSION_MAJOR}-cli_${VERSION_BUILD}_linux_i686.tgz *
-          popd
-          pushd linux_x86-64
-            prepare_artifacts
-            tar -cvzf cf${VERSION_MAJOR}-cli_${VERSION_BUILD}_linux_x86-64.tgz *
-          popd
-          pushd linux_arm64
-            prepare_artifacts
-            tar -cvzf cf${VERSION_MAJOR}-cli_${VERSION_BUILD}_linux_arm64.tgz *
-          popd
-
-          mkdir osx
-          mv cf-cli-macos-binaries/cf-cli_osx osx/cf${VERSION_MAJOR}
-          pushd osx
-            prepare_artifacts
-            tar -cvzf cf${VERSION_MAJOR}-cli_${VERSION_BUILD}_osx.tgz *
-          popd
-          mkdir macosarm
-          mv cf-cli-macos-binaries/cf-cli_macosarm macosarm/cf${VERSION_MAJOR}
-          pushd macosarm
-            prepare_artifacts
-            tar -cvzf cf${VERSION_MAJOR}-cli_${VERSION_BUILD}_macosarm.tgz *
-          popd
-
-          mkdir win32 winx64
-          mv cf-cli-windows-binaries/cf-cli_win32.exe win32/cf${VERSION_MAJOR}.exe
-          mv cf-cli-windows-binaries/cf-cli_winx64.exe winx64/cf${VERSION_MAJOR}.exe
-          pushd win32
-            prepare_win_artifacts
-            # -y flag avoids the default behavior of dereferencing the link, so we archive the symlink as-is
-            zip -y cf${VERSION_MAJOR}-cli_${VERSION_BUILD}_win32.zip *
-          popd
-          pushd winx64
-            prepare_win_artifacts
-            # -y flag avoids the default behavior of dereferencing the link, so we archive the symlink as-is
-            zip -y cf${VERSION_MAJOR}-cli_${VERSION_BUILD}_winx64.zip *
-          popd
-        popd
-
-    - name: Rearrange artifacts before upload
-      run: |
-        mkdir upload
-        cp -v -t upload  \
-          signed/cf-cli-linux-rpm-packages/cf*rpm \
-          signed/cf-cli-linux-deb-packages/cf*deb \
-          signed/cf-cli-macos-packages/cf*pkg \
-          signed/cf-cli-windows-packages/cf*zip \
-          signed/linux_i686/*tgz \
-          signed/linux_x86-64/*tgz \
-          signed/linux_arm64/*tgz \
-          signed/osx/*tgz \
-          signed/macosarm/*tgz \
-          signed/win32/*zip \
-          signed/winx64/*zip
-
-    - name: Store Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        if-no-files-found: error
-        name: final-artifacts
-        path: signed/*          
-
-    - name: Setup aws to upload installers to CLAW S3 bucket
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id:     ${{ vars.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY  }}
-        aws-region:            ${{ vars.AWS_REGION }}
-        role-to-assume:        ${{ vars.AWS_S3_ROLE_ARN }}
-        role-skip-session-tagging: true
-        role-duration-seconds:     1200
-
-    - name: Upload installers to CLAW S3 bucket
-      run: aws s3 sync upload "s3://v${VERSION_MAJOR}-cf-cli-releases/releases/v${VERSION_BUILD}/"
-
-    - name: list S3 for human verification
-      run: aws s3 ls "s3://v${VERSION_MAJOR}-cf-cli-releases/releases/v${VERSION_BUILD}/"
-
-  test-rpm-package:
-    name: Test RPM Artifacts
-    needs:
-    - setup
-    - build-linux
-    runs-on: ubuntu-latest
-    container:
-      image: fedora
-    steps:
-
-    - name: Download Signed Linux Packages
-      uses: actions/download-artifact@v4
-      with:
-        name: cf-cli-linux-rpm-packages
-
-    - name: Display structure of downloaded files
-      run: ls -R
-
-    - name: Test RPMs
-      run: |
-        rpm -q --qf 'FN:\t%{FILENAMES}\nNAME:\t%{NAME}\nPGP:\t%{SIGPGP:pgpsig}\nGPG:\t%{SIGGPG:pgpsig}\n' -p *.rpm
 
   test-deb-package:
     name: Test Debian Artifacts
     needs:
     - setup
     - build-linux
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     container:
       image: ubuntu:20.04
     steps:
@@ -920,153 +404,3 @@ jobs:
         ls -R
         ls *.deb | xargs -n1 dpkg --info
 
-  test-macos:
-    name: Test macOS Artifacts
-    needs:
-    - setup
-    - build-macos
-    runs-on: macos-latest
-    steps:
-
-    - name: Download Signed macOS Packages
-      uses: actions/download-artifact@v4
-      with:
-        name: cf-cli-macos-packages
-
-    - name: Inspect macOS packages
-      run: |
-        ls -R
-        #TODO: DEV shim
-        pkgutil --check-signature *
-
-  test-windows:
-    name: Test Windows Artifacts
-    needs:
-    - setup
-    - build-windows
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: pwsh
-    env:
-      VERSION_MAJOR: ${{ needs.setup.outputs.version-major }}
-    steps:
-
-    - name: Download Signed Windows Binaries
-      uses: actions/download-artifact@v4
-      with:
-        name: cf-cli-windows-binaries
-
-    - name: Inspect Windows packages
-      run: |
-        Get-AuthenticodeSignature -Verbose -ErrorAction Stop .\cf-cli_win32.exe
-        Get-AuthenticodeSignature -Verbose -ErrorAction Stop .\cf-cli_winx64.exe
-
-    - name: Download Signed Windows Binaries
-      uses: actions/download-artifact@v4
-      with:
-        name: cf-cli-windows-packages
-
-    - name: Inspect Windows files
-      run: |
-        Get-ChildItem -Force
-
-    - name: View installer signature
-      run: |
-        Expand-Archive -DestinationPath winx64 -Path cf${env:VERSION_MAJOR}-cli-installer_*_winx64.zip
-        Expand-Archive -DestinationPath win32  -Path cf${env:VERSION_MAJOR}-cli-installer_*_win32.zip
-
-        Get-AuthenticodeSignature -Verbose -ErrorAction Stop ".\winx64\cf${env:VERSION_MAJOR}_installer.exe"
-        Get-AuthenticodeSignature -Verbose -ErrorAction Stop ".\win32\cf${env:VERSION_MAJOR}_installer.exe"
-
-  github-release-draft:
-    name: Create GitHub Release Draft
-    runs-on: ubuntu-latest
-    env:
-      REPO_DIR: repo
-      ARTIFACTS_DIR: artifacts
-    permissions:
-      actions: read
-      contents: write
-    needs:
-    - setup
-    - s3-upload
-    steps:
-    - name: Download signed artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: final-artifacts
-        path: ${{ env.ARTIFACTS_DIR }}
-
-    - name: Checkout CLI
-      uses: actions/checkout@v4
-      with:
-        path: ${{ env.REPO_DIR }}
-       
-    - name: Prepare release notes
-      run: |
-        sed -i 's/new-version/${{ needs.setup.outputs.version-build }}/g' "${{ env.REPO_DIR }}/.github/release/release-notes-template.txt"
-        
-    - name: Create draft release
-      uses: softprops/action-gh-release@v2
-      with:
-        draft:                   true
-        name:                    "DRAFT v${{ needs.setup.outputs.version-build }}"
-        tag_name:                "v${{ needs.setup.outputs.version-build }}"
-        body_path:               "${{ env.REPO_DIR }}/.github/release/release-notes-template.txt"
-        fail_on_unmatched_files: true
-        generate_release_notes: true
-        files: |
-          ${{ env.ARTIFACTS_DIR }}/cf-cli-linux-rpm-packages/cf*rpm 
-          ${{ env.ARTIFACTS_DIR }}/cf-cli-linux-deb-packages/cf*deb
-          ${{ env.ARTIFACTS_DIR }}/cf-cli-macos-packages/cf*pkg
-          ${{ env.ARTIFACTS_DIR }}/cf-cli-windows-packages/cf*zip
-          ${{ env.ARTIFACTS_DIR }}/linux_i686/*tgz
-          ${{ env.ARTIFACTS_DIR }}/linux_x86-64/*tgz
-          ${{ env.ARTIFACTS_DIR }}/linux_arm64/*tgz
-          ${{ env.ARTIFACTS_DIR }}/osx/*tgz
-          ${{ env.ARTIFACTS_DIR }}/macosarm/*tgz
-          ${{ env.ARTIFACTS_DIR }}/win32/*zip
-          ${{ env.ARTIFACTS_DIR }}/winx64/*zip 
-
-  update-claw:
-    name: Add new release version to CLAW
-    runs-on: ubuntu-latest
-    needs:
-    - setup
-    - s3-upload
-    env:
-      VERSION_BUILD: ${{ needs.setup.outputs.version-build }}
-    steps:
-    - name: Checkout CLAW
-      uses: actions/checkout@v4
-      with:
-        repository: cloudfoundry/CLAW
-        ref: master
-        path: CLAW
-        ssh-key: ${{ secrets.GIT_SSH_KEY_CLAW }}  
-
-    - name: Add new version to claw variables
-      run: |
-        set -ex
-
-        pushd CLAW
-          if  grep --quiet "${VERSION_BUILD}" "claw-variables.yml" ; then
-            echo 'Version already exists in CLAW.'
-            exit 1
-          else
-            echo "- ${VERSION_BUILD}" >> claw-variables.yml
-
-            git add claw-variables.yml
-
-            if ! [ -z "$(git status --porcelain)"]; then
-              git config user.name github-actions
-              git config user.email github-actions@github.com
-              git commit -m "Add CF CLI ${VERSION_BUILD}"
-            else
-                echo "no new version to commit"
-            fi
-            
-            git push
-          fi
-        popd
