@@ -390,8 +390,8 @@ jobs:
     - setup
     - build-linux
     runs-on: ubuntu-latest
-    container:
-      image: ubuntu:20.04
+    # container:
+    #   image: ubuntu:20.04
     steps:
 
     - name: Download Signed Linux Packages
@@ -402,5 +402,16 @@ jobs:
     - name: Display structure of downloaded files
       run: |
         ls -R
+
+        for i in debian:11 debian:12 ubuntu:20.04 ubuntu:22.04 ubuntu; do docker run \
+          --interactive \
+          --rm \
+          -v ./tmp:/workspace \
+          ${i:?} <<EOC
+        printf "${i:?} -> "
+        grep PRETTY_NAME /etc/os-release | cut -d= -f2-
+        cd workspace
         ls *.deb | xargs -n1 dpkg --info
+        EOC
+        done
 
