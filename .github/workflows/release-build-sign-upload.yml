@@ -313,7 +313,7 @@ jobs:
             cp ../completion/cf${VERSION_MAJOR} cf/usr/share/bash-completion/completions/cf${VERSION_MAJOR}
             cp $root/out/cf-cli_linux_i686 cf/usr/bin/cf${VERSION_MAJOR}
             ln -frs cf/usr/bin/cf${VERSION_MAJOR} cf/usr/bin/cf
-            fakeroot dpkg --build cf cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_i686.deb
+            fakeroot dpkg-deb -Zxz --build cf cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_i686.deb
             mv cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_i686.deb $root/packaged-deb
             rm -rf cf
           popd
@@ -338,7 +338,7 @@ jobs:
             cp ../completion/cf${VERSION_MAJOR} cf/usr/share/bash-completion/completions/cf${VERSION_MAJOR}
             cp $root/out/cf-cli_linux_x86-64 cf/usr/bin/cf${VERSION_MAJOR}
             ln -frs cf/usr/bin/cf${VERSION_MAJOR} cf/usr/bin/cf
-            fakeroot dpkg --build cf cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_x86-64.deb
+            fakeroot dpkg-deb -Zxz --build cf cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_x86-64.deb
             mv cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_x86-64.deb $root/packaged-deb
           popd
         )
@@ -362,7 +362,7 @@ jobs:
             cp ../completion/cf${VERSION_MAJOR} cf/usr/share/bash-completion/completions/cf${VERSION_MAJOR}
             cp $root/out/cf-cli_linux_arm64 cf/usr/bin/cf${VERSION_MAJOR}
             ln -frs cf/usr/bin/cf${VERSION_MAJOR} cf/usr/bin/cf
-            fakeroot dpkg --build cf cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_arm64.deb
+            fakeroot dpkg-deb -Zxz --build cf cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_arm64.deb
             mv cf${VERSION_MAJOR}-cli-installer_${VERSION_BUILD}_arm64.deb $root/packaged-deb
           popd
         )
