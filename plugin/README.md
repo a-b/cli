@@ -6,6 +6,37 @@ This package contains the core interfaces and types for the Cloud Foundry CLI pl
 
 The CF CLI plugin system allows developers to extend the functionality of the CF CLI by creating plugins that can be installed and run alongside the core CLI commands.
 
+## Architecture
+
+```mermaid
+graph TD
+    User[User] -->|Executes| CLI[CF CLI]
+    CLI -->|Loads| PluginSystem[Plugin System]
+    PluginSystem -->|Manages| PluginConfig[Plugin Config]
+    PluginSystem -->|Executes| Plugin[Plugin]
+    Plugin -->|Uses| CliConnection[CLI Connection]
+    CliConnection -->|Calls| CLI
+    
+    subgraph "Plugin System Components"
+        PluginSystem
+        PluginConfig -->|Stores| PluginMetadata[Plugin Metadata]
+        PluginConfig -->|Stores| PluginCommands[Plugin Commands]
+    end
+    
+    subgraph "Plugin Interface"
+        Plugin
+        Plugin -->|Implements| Run[Run Method]
+        Plugin -->|Implements| GetMetadata[GetMetadata Method]
+    end
+    
+    subgraph "CLI Connection Interface"
+        CliConnection
+        CliConnection -->|Provides| CommandExecution[Command Execution]
+        CliConnection -->|Provides| ContextInfo[Context Info]
+        CliConnection -->|Provides| ResourceAccess[Resource Access]
+    end
+```
+
 ## Plugin Interface
 
 All plugins must implement the `Plugin` interface:
@@ -19,6 +50,27 @@ type Plugin interface {
 
 - `Run`: The entry point for your plugin. This is called when a user executes your plugin command.
 - `GetMetadata`: Returns metadata about your plugin, including commands, help text, and version information.
+
+## Plugin System Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI as CF CLI
+    participant PluginSystem as Plugin System
+    participant Plugin
+    participant API as CF API
+    
+    User->>CLI: cf plugin-command
+    CLI->>PluginSystem: Find plugin for command
+    PluginSystem->>PluginSystem: Validate plugin
+    PluginSystem->>Plugin: Load plugin
+    Plugin->>CLI: Request CLI Connection
+    CLI->>Plugin: Provide CLI Connection
+    Plugin->>API: Make API calls via CLI Connection
+    API->>Plugin: Return results
+    Plugin->>User: Display output
+```
 
 ## CLI Connection
 
