@@ -4,7 +4,7 @@
 
 The official command line interface for [Cloud Foundry](https://cloudfoundry.org).
 
-View the latest help documentation for [**The v8 CLI**](https://cli.cloudfoundry.org/en-US/v8) or [**The v7 CLI**](https://cli.cloudfoundry.org/en-US/v7), or run `cf help -a` to view all commands available in your currently installed version.
+View the latest help documentation for [**The v8 CLI**](https://cli.cloudfoundry.org/en-US/v8), or run `cf help -a` to view all commands available in your currently installed version.
 
 [![GitHub version](https://badge.fury.io/gh/cloudfoundry%2Fcli.svg)](https://github.com/cloudfoundry/cli/releases/latest)
 [![Documentation](https://img.shields.io/badge/docs-online-ff69b4.svg)](https://docs.cloudfoundry.org/cf-cli)
@@ -32,7 +32,7 @@ CF CLI Binary Download Status:
 ---
 ## Getting Started
 
-Download and install the cf CLI from the [Downloads Section](#downloads) for either the [v8 cf CLI](https://github.com/cloudfoundry/cli/wiki/V8-CLI-Installation-Guide) or the [v7 cf CLI](https://github.com/cloudfoundry/cli/wiki/V7-CLI-Installation-Guide).
+Download and install the cf CLI from the [Downloads Section](#downloads) for the [v8 cf CLI](https://github.com/cloudfoundry/cli/wiki/V8-CLI-Installation-Guide).
 
 Once installed, you can log in and push an app with a few simple commands:
 
@@ -44,14 +44,11 @@ cf login -a <API_ENDPOINT>
 cf push my-app
 ```
 
-### Supported Versions
+### Supported Version
 
-The cf CLI currently has two actively supported versions:
+The cf CLI is currently on version 8, backed by the [v3 CC API](http://v3-apidocs.cloudfoundry.org/). See [v8 documentation](https://docs.cloudfoundry.org/cf-cli/v8.html) for details.
 
-1. **v8 CLI** - Latest version backed by the [v3 CC API](http://v3-apidocs.cloudfoundry.org/). See [v8 documentation](https://docs.cloudfoundry.org/cf-cli/v8.html) for details.
-2. **v7 CLI** - Previous version also backed by the [v3 CC API](http://v3-apidocs.cloudfoundry.org/). See [v7 documentation](https://docs.cloudfoundry.org/cf-cli/v7.html) for details.
-
-For information about version support timelines, see our [CLI v7 & v8 Versioning and Support Policy](https://github.com/cloudfoundry/cli/wiki/Versioning-and-Support-Policy).
+For information about version support timelines, see our [CLI Versioning and Support Policy](https://github.com/cloudfoundry/cli/wiki/Versioning-and-Support-Policy).
 
 ### Getting Help
 
@@ -80,9 +77,7 @@ Extend the functionality of the CF CLI with [community contributed plugins](http
 
 ### Installation Instructions
 
-- **[Install V8 CLI](https://github.com/cloudfoundry/cli/wiki/V8-CLI-Installation-Guide)** (Recommended)
-- **[Install V7 CLI](https://github.com/cloudfoundry/cli/wiki/V7-CLI-Installation-Guide)**
-- **[Switching Between Multiple Versions](https://github.com/cloudfoundry/cli/wiki/Version-Switching-Guide)**
+- **[Install V8 CLI](https://github.com/cloudfoundry/cli/wiki/V8-CLI-Installation-Guide)**
 
 ### Package Managers
 
@@ -129,7 +124,6 @@ For more installation options, see the [installation guides](https://github.com/
 
 * **Warning Output**: X-Cf-Warnings are printed to `stdout`. Set `CF_RAISE_ERROR_ON_WARNINGS` to redirect warnings to `stderr` ([issue #2164](https://github.com/cloudfoundry/cli/issues/2164)).
 
-* **Org Creation**: Fixed in v7.2 - Earlier versions had false negative messages when non-admin users with the user-org-creation flag enabled ran `cf create-org` ([issue #1879](https://github.com/cloudfoundry/cloud_controller_ng/issues/1879)).
 
 ## Filing Issues & Feature Requests
 
