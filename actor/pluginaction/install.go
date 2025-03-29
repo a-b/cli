@@ -1,6 +1,7 @@
 package pluginaction
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -106,7 +107,9 @@ func (actor Actor) GetAndValidatePlugin(pluginMetadata PluginMetadata, commandLi
 			return configv3.Plugin{}, actionerror.PluginInvalidLibraryVersionError{}
 		}
 	default:
-		panic("unrecognized major version")
+		return configv3.Plugin{}, actionerror.PluginInvalidError{
+			Err: fmt.Errorf("CLI major version %d not supported for plugins", cliVersion.Major),
+		}
 	}
 
 	installedPlugins := actor.config.Plugins()
