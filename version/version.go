@@ -1,6 +1,8 @@
 package version
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/blang/semver/v4"
@@ -12,9 +14,25 @@ var (
 	binaryVersion   string
 	binarySHA       string
 	binaryBuildDate string
+	customVersion   string
 )
 
+func SetVersion(version string) {
+	_, err := semver.Parse(version)
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to parse version: %s\n", err)
+		os.Exit(1)
+	}
+
+	customVersion = version
+}
+
 func VersionString() string {
+	if customVersion != "" {
+		return customVersion
+	}
+
 	// Remove the "v" prefix from the binary in case it is present
 	binaryVersion = strings.TrimPrefix(binaryVersion, "v")
 	versionString, err := semver.Make(binaryVersion)
